@@ -7,15 +7,15 @@ import seaborn as sns
 import numpy as np
 import random
 
-from ABM_Jul25.agents import (
+from agents import (
     CancerCell, CancerSubtype,
     CD8TCell,
     CD4TCell, CD4TSubtype,
     MDSC,
     Macrophage, MacSubtype
 )
-from ABM_Jul25.model import ABM_Model
-import ABM_Jul25.params as P
+from model import ABM_Model
+import params as P
 
 
 # Visualization functions

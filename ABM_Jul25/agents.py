@@ -5,7 +5,7 @@ from mesa import Agent
 from enum import Enum, auto
 import random
 import numpy as np
-import ABM_Jul25.params as P
+import params as P
 import math
 
 

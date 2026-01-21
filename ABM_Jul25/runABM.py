@@ -387,7 +387,9 @@ def plot_grid(model):
     plt.title("Final Cell Distribution on Grid", fontsize=14, fontweight='bold')
     plt.xlabel("X Position")
     plt.ylabel("Y Position")
-    return plt
+    
+    fig = plt.gcf()   # get current figure
+    return fig
 
 
 def plot_cytokine_concentrations(model, output_dir="simulation_output"):

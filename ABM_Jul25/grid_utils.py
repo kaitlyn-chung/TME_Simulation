@@ -1,6 +1,6 @@
 # grid_utils.py
 import numpy as np
-import ABM_Jul25.params as P
+import params as P
 
 def laplacian(field: np.ndarray) -> np.ndarray:
     """

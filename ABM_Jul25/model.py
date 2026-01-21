@@ -7,9 +7,9 @@ import numpy as np
 import math
 import random
 
-import ABM_Jul25.agents as A
-from ABM_Jul25.grid_utils import update_diffusion_over_timestep
-import ABM_Jul25.params as P
+import agents as A
+from grid_utils import update_diffusion_over_timestep
+import params as P
 
 
 class SimultaneousActivation:
