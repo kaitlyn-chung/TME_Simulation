@@ -5,7 +5,7 @@ from mesa import Agent
 from enum import Enum, auto
 import random
 import numpy as np
-import params as P
+from . import params as P
 import math
 
 

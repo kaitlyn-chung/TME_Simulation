@@ -8,15 +8,15 @@ import numpy as np
 import random
 import os
 
-from agents import (
+from .agents import (
     CancerCell, CancerSubtype,
     CD8TCell,
     CD4TCell, CD4TSubtype,
     MDSC,
     Macrophage, MacSubtype
 )
-from model import ABM_Model
-import params as P
+from .model import ABM_Model
+from . import params as P
 
 
 # Visualization functions
@@ -193,7 +193,7 @@ if __name__ == "__main__":
         steps=100,
         width=30,
         height=30,
-        initial_tumor_cells=100,
+        initial_tumor_cells=80,
         initial_CD8Tcells=20,
         initial_CD4Tcells=30,
         initial_macrophages=30,

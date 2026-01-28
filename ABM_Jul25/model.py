@@ -7,9 +7,9 @@ import numpy as np
 import math
 import random
 
-import agents as A
-from grid_utils import update_diffusion_over_timestep
-import params as P
+from . import agents as A
+from .grid_utils import update_diffusion_over_timestep
+from . import params as P
 
 
 class SimultaneousActivation:
