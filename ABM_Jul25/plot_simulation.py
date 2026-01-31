@@ -20,6 +20,7 @@ from ABM_Jul25.agents import (
 )
 from ABM_Jul25.model import ABM_Model
 import ABM_Jul25.params as P
+from ABM_Jul25.scenarios import DEFAULT_SCENARIOS
 
 
 def print_step_summary(model, step_num, step_time=None):
@@ -88,7 +89,6 @@ def print_step_summary(model, step_num, step_time=None):
     print(f"  M1:M2         = {m1_m2_ratio:.2f}")
     print(f"  Helper:Treg   = {helper_treg_ratio:.2f}")
 
-
 def print_molecular_summary(model):
     """Print summary of molecular concentrations."""
     print(f"\nMOLECULAR CONCENTRATIONS (mean ± std):")
@@ -103,10 +103,8 @@ def print_molecular_summary(model):
         print(f"  {mol:5s}: {mean_conc:.2e} ± {std_conc:.2e} (max: {max_conc:.2e})")
 
 
-def save_step_data(model, step_num, output_dir="simulation_output"):
+def save_step_data(model, step_num, output_dir='simulation_output'):
     """Save step data to files."""
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
     
     # Save cell counts
     cancer_stem = model.count_cell_type(CancerCell, subtype=CancerSubtype.STEM)
@@ -128,51 +126,6 @@ def save_step_data(model, step_num, output_dir="simulation_output"):
     with open(csv_file, 'a') as f:
         f.write(f"{step_num},{cancer_stem},{cancer_prog},{cancer_senes},{cd8_count},"
                 f"{cd4_helper},{cd4_treg},{m1_count},{m2_count},{mdsc_count}\n")
-
-
-# Default simulation scenarios
-DEFAULT_SCENARIOS = {
-    'small_test': {
-        'steps': 20,
-        'width': 20,
-        'height': 20,
-        'initial_tumor_cells': 20,
-        'initial_CD8Tcells': 5,
-        'initial_CD4Tcells': 8,
-        'initial_macrophages': 8,
-        'initial_MDSC': 3
-    },
-    'standard': {
-        'steps': 100,
-        'width': 30,
-        'height': 30,
-        'initial_tumor_cells': 80,
-        'initial_CD8Tcells': 20,
-        'initial_CD4Tcells': 30,
-        'initial_macrophages': 30,
-        'initial_MDSC': 10
-    },
-    'large_tumor': {
-        'steps': 150,
-        'width': 50,
-        'height': 50,
-        'initial_tumor_cells': 200,
-        'initial_CD8Tcells': 40,
-        'initial_CD4Tcells': 60,
-        'initial_macrophages': 60,
-        'initial_MDSC': 20
-    },
-    'immune_rich': {
-        'steps': 100,
-        'width': 30,
-        'height': 30,
-        'initial_tumor_cells': 30,
-        'initial_CD8Tcells': 40,
-        'initial_CD4Tcells': 50,
-        'initial_macrophages': 40,
-        'initial_MDSC': 5
-    }
-}
 
 
 def run_simulation_verbose(
@@ -198,10 +151,6 @@ def run_simulation_verbose(
     show_molecules : bool
         Whether to print molecular concentrations (can be verbose)
     """
-    
-    # Get base parameters from scenario
-    if scenario not in DEFAULT_SCENARIOS:
-        raise ValueError(f"Unknown scenario '{scenario}'. Available: {list(DEFAULT_SCENARIOS.keys())}")
     
     params = DEFAULT_SCENARIOS[scenario].copy()
     
@@ -299,7 +248,7 @@ def run_simulation_verbose(
     return model
 
 
-def plot_grid(model):
+def plot_grid(model, output_dir):
     """
     Build a 2D array of integer codes representing each agent (by subtype) on the grid,
     then display it with a ListedColormap and colorbar.
@@ -388,10 +337,14 @@ def plot_grid(model):
     plt.ylabel("Y Position")
     
     fig = plt.gcf()   # get current figure
+    # Save the figure
+    plt.savefig(os.path.join(output_dir, 'final_cell_grid.png'), 
+                dpi=300, bbox_inches='tight')
+    
     return fig
 
 
-def plot_cytokine_concentrations(model, output_dir="simulation_output"):
+def plot_cytokine_concentrations(model, output_dir):
     """
     Plot the 2D concentration fields for all cytokines and save them.
     """
@@ -430,13 +383,13 @@ def plot_cytokine_concentrations(model, output_dir="simulation_output"):
                 # Use log-normalized colormap if there's significant range
                 if signal_max / signal_min > 100:
                     from matplotlib.colors import LogNorm
-                    im = ax.imshow(signal_grid.T, origin="lower", cmap="plasma", 
+                    im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis", 
                                  norm=LogNorm(vmin=signal_min, vmax=signal_max))
                 else:
-                    im = ax.imshow(signal_grid.T, origin="lower", cmap="plasma",
+                    im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis",
                                  vmin=0, vmax=signal_max)
             else:
-                im = ax.imshow(signal_grid.T, origin="lower", cmap="plasma")
+                im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis")
             
             # Add colorbar
             cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
@@ -464,15 +417,13 @@ def plot_cytokine_concentrations(model, output_dir="simulation_output"):
     plt.tight_layout()
     
     # Save the figure
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
     plt.savefig(os.path.join(output_dir, 'final_cytokine_concentrations.png'), 
                 dpi=300, bbox_inches='tight')
     
     return fig
 
 
-def plot_summary_dashboard(model, output_dir="simulation_output"):
+def plot_summary_dashboard(model, output_dir):
     """
     Create a comprehensive dashboard with cell grid, population dynamics, and key cytokines.
     """
@@ -550,10 +501,10 @@ def plot_summary_dashboard(model, output_dir="simulation_output"):
             signal_max = np.max(signal_grid)
             
             if signal_max > 0:
-                im = ax.imshow(signal_grid.T, origin="lower", cmap="plasma", vmin=0, vmax=signal_max)
+                im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis", vmin=0, vmax=signal_max)
                 plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             else:
-                ax.imshow(np.zeros_like(signal_grid).T, origin="lower", cmap="plasma")
+                ax.imshow(np.zeros_like(signal_grid).T, origin="lower", cmap="viridis")
                 
             ax.text(0.02, 0.98, f'Max: {signal_max:.1e}', 
                    transform=ax.transAxes, fontsize=8, verticalalignment='top',
@@ -565,143 +516,79 @@ def plot_summary_dashboard(model, output_dir="simulation_output"):
         ax.set_xlabel('X Position', fontsize=9)
         ax.set_ylabel('Y Position', fontsize=9)
 
-    plt.suptitle('ABM Simulation Summary Dashboard', fontsize=18, fontweight='bold', y=0.95)
-    plt.tight_layout()
+    plt.suptitle('ABM Simulation Summary Dashboard', fontsize=18, fontweight='bold', y=0.98)
+
+    # Leave the top 8% of the figure for the suptitle
+    plt.tight_layout(rect=[0, 0, 1, 0.98])
     
     # Save the dashboard
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
     plt.savefig(os.path.join(output_dir, 'simulation_dashboard.png'), 
                 dpi=300, bbox_inches='tight')
     
     return fig
 
-def plot_results_from_csv(csv_file="simulation_output/cell_counts.csv"):
-    """Plot results from saved CSV data."""
+def plot_results_from_csv(csv_file="cell_counts.csv", output_dir="simulation_output", show=True):
+    """Plot results from saved CSV data and save to output_dir."""
+    # Read CSV
     try:
         import pandas as pd
         df = pd.read_csv(csv_file)
-        
-        plt.figure(figsize=(15, 10))
-        
+
+        fig = plt.figure(figsize=(15, 10))
+
         # Cancer cells subplot
-        plt.subplot(2, 2, 1)
-        plt.plot(df['Step'], df['Cancer_Stem'], 'g-', label='Stem', linewidth=2)
-        plt.plot(df['Step'], df['Cancer_Prog'], 'orange', label='Progenitor', linewidth=2)
-        plt.plot(df['Step'], df['Cancer_Senes'], 'r-', label='Senescent', linewidth=2)
-        plt.xlabel('Step')
-        plt.ylabel('Cell Count')
-        plt.title('Cancer Cell Populations')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        
+        ax1 = fig.add_subplot(2, 2, 1)
+        ax1.plot(df['Step'], df['Cancer_Stem'], 'g-', label='Stem', linewidth=2)
+        ax1.plot(df['Step'], df['Cancer_Prog'], color='orange', label='Progenitor', linewidth=2)
+        ax1.plot(df['Step'], df['Cancer_Senes'], 'r-', label='Senescent', linewidth=2)
+        ax1.set_xlabel('Step')
+        ax1.set_ylabel('Cell Count')
+        ax1.set_title('Cancer Cell Populations')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+
         # Immune cells subplot
-        plt.subplot(2, 2, 2)
-        plt.plot(df['Step'], df['CD8'], 'b-', label='CD8+ T', linewidth=2)
-        plt.plot(df['Step'], df['CD4_Helper'], 'purple', label='CD4+ Helper', linewidth=2)
-        plt.plot(df['Step'], df['CD4_Treg'], 'pink', label='CD4+ Treg', linewidth=2)
-        plt.xlabel('Step')
-        plt.ylabel('Cell Count')
-        plt.title('T Cell Populations')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        
+        ax2 = fig.add_subplot(2, 2, 2)
+        ax2.plot(df['Step'], df['CD8'], 'b-', label='CD8+ T', linewidth=2)
+        ax2.plot(df['Step'], df['CD4_Helper'], color='purple', label='CD4+ Helper', linewidth=2)
+        ax2.plot(df['Step'], df['CD4_Treg'], color='pink', label='CD4+ Treg', linewidth=2)
+        ax2.set_xlabel('Step')
+        ax2.set_ylabel('Cell Count')
+        ax2.set_title('T Cell Populations')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+
         # Myeloid cells subplot
-        plt.subplot(2, 2, 3)
-        plt.plot(df['Step'], df['M1'], 'cyan', label='M1 Macrophage', linewidth=2)
-        plt.plot(df['Step'], df['M2'], 'magenta', label='M2 Macrophage', linewidth=2)
-        plt.plot(df['Step'], df['MDSC'], 'gray', label='MDSC', linewidth=2)
-        plt.xlabel('Step')
-        plt.ylabel('Cell Count')
-        plt.title('Myeloid Cell Populations')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        
+        ax3 = fig.add_subplot(2, 2, 3)
+        ax3.plot(df['Step'], df['M1'], color='cyan', label='M1 Macrophage', linewidth=2)
+        ax3.plot(df['Step'], df['M2'], color='magenta', label='M2 Macrophage', linewidth=2)
+        ax3.plot(df['Step'], df['MDSC'], color='gray', label='MDSC', linewidth=2)
+        ax3.set_xlabel('Step')
+        ax3.set_ylabel('Cell Count')
+        ax3.set_title('Myeloid Cell Populations')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+
         # Total populations subplot
-        plt.subplot(2, 2, 4)
+        ax4 = fig.add_subplot(2, 2, 4)
         total_cancer = df['Cancer_Stem'] + df['Cancer_Prog'] + df['Cancer_Senes']
-        total_immune = df['CD8'] + df['CD4_Helper'] + df['CD4_Treg'] + df['M1'] + df['M2'] + df['MDSC']
-        plt.plot(df['Step'], total_cancer, 'red', label='Total Cancer', linewidth=3)
-        plt.plot(df['Step'], total_immune, 'blue', label='Total Immune', linewidth=3)
-        plt.xlabel('Step')
-        plt.ylabel('Cell Count')
-        plt.title('Cancer vs Immune Populations')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        plt.savefig('simulation_output/simulation_results.png', dpi=300, bbox_inches='tight')
-        plt.show()
-        
+        total_immune = (df['CD8'] + df['CD4_Helper'] + df['CD4_Treg'] +
+                        df['M1'] + df['M2'] + df['MDSC'])
+        ax4.plot(df['Step'], total_cancer, color='red', label='Total Cancer', linewidth=3)
+        ax4.plot(df['Step'], total_immune, color='blue', label='Total Immune', linewidth=3)
+        ax4.set_xlabel('Step')
+        ax4.set_ylabel('Cell Count')
+        ax4.set_title('Cancer vs Immune Populations')
+        ax4.legend()
+        ax4.grid(True, alpha=0.3)
+
+        fig.tight_layout()
+
+        # Save
+        fig.savefig(os.path.join(output_dir, "population_dynamics.png"), 
+                    dpi=300, bbox_inches="tight")
+
     except ImportError:
         print("pandas not available for plotting CSV data")
     except FileNotFoundError:
         print(f"CSV file {csv_file} not found")
-
-# Main execution
-if __name__ == "__main__":
-    # Set seeds for reproducibility
-    np.random.seed(42)
-    random.seed(42)
-    
-    print("Available scenarios:")
-    for name, params in DEFAULT_SCENARIOS.items():
-        print(f"  {name}: {params['initial_tumor_cells']} cancer, "
-              f"{params['initial_CD8Tcells']+params['initial_CD4Tcells']} T cells, "
-              f"{params['steps']} steps")
-    
-    # Option 1: Use a predefined scenario
-    print(f"\nRunning 'standard' scenario...")
-    model = run_simulation_verbose(
-        scenario='standard',
-        print_every=5,  # Print every 5 steps
-        save_data=True,
-        show_molecules=False
-    )
-    
-    # Option 2: Use custom parameters
-    # print(f"\nRunning custom simulation...")
-    # model = run_simulation_verbose(
-    #     scenario='standard',
-    #     custom_params={
-    #         'initial_tumor_cells': 75,  # Override just this parameter
-    #         'steps': 30
-    #     },
-    #     print_every=1,
-    #     save_data=True,
-    #     show_molecules=True
-    # )
-    
-    # Generate all visualization outputs
-    print("\nGenerating comprehensive outputs...")
-    
-    # Generate outputs individually since generate_all_outputs wasn't defined
-    if not os.path.exists("simulation_output"):
-        os.makedirs("simulation_output")
-    
-    print("  - Final cell distribution grid...")
-    fig1 = plot_grid(model)
-    fig1.savefig("simulation_output/final_cell_grid.png", dpi=300, bbox_inches='tight')
-    plt.close(fig1)
-    
-    print("  - Cytokine concentration fields...")
-    fig2 = plot_cytokine_concentrations(model, "simulation_output")
-    plt.close(fig2)
-    
-    print("  - Summary dashboard...")
-    fig3 = plot_summary_dashboard(model, "simulation_output")
-    plt.close(fig3)
-    
-    print("  - Population dynamics...")
-    plot_results_from_csv("simulation_output/cell_counts.csv")
-    
-    print("\n" + "="*80)
-    print("SIMULATION COMPLETE!")
-    print("="*80)
-    print("Check 'simulation_output/' directory for:")
-    print("  📊 population_dynamics.png - Cell counts over time")
-    print("  🗺️  final_cell_grid.png - Final spatial distribution") 
-    print("  🧪 final_cytokine_concentrations.png - All molecular fields")
-    print("  📈 simulation_dashboard.png - Comprehensive summary")
-    print("  📋 cell_counts.csv - Raw data for further analysis")
-    print("="*80)
