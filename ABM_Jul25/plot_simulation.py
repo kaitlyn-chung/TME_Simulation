@@ -155,7 +155,7 @@ def run_simulation_verbose(
     params = DEFAULT_SCENARIOS[scenario].copy()
     
     # Override with custom parameters if provided
-    if custom_params:
+    if custom_params is not None:
         params.update(custom_params)
     
     # Extract parameters
@@ -179,7 +179,7 @@ def run_simulation_verbose(
     print(f"  CD4+ T cells: {initial_CD4Tcells}")
     print(f"  Macrophages:  {initial_macrophages}")
     print(f"  MDSCs:        {initial_MDSC}")
-    
+
     # Initialize model
     start_time = time.time()
     model = ABM_Model(
