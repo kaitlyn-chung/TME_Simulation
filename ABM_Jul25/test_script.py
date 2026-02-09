@@ -20,7 +20,7 @@ from ABM_Jul25.agents import (
 )
 from ABM_Jul25.model import ABM_Model
 import ABM_Jul25.params as P
-from ABM_Jul25.scenarios import DEFAULT_SCENARIOS
+from ABM_Jul25.scenarios import (DEFAULT_SCENARIOS, get_value)
 from ABM_Jul25.plot_simulation import (run_simulation_verbose,
                                         plot_grid,
                                         plot_cytokine_concentrations,
@@ -50,27 +50,44 @@ def main():
         print('Invalid scenario name! Check your spelling and case senstiivity. ')
         choice = input('Which scenario would you like to choose? ')
 
-    # Option 1: Use a predefined scenario
-    print(f"\nRunning {choice} scenario...")
-    model = run_simulation_verbose(
-        scenario=choice,
-        print_every=5,  # Print every 5 steps
-        save_data=True,
-        show_molecules=False
-    )
-    
-    # Option 2: Use custom parameters
-    # print(f"\nRunning custom simulation...")
-    # model = run_simulation_verbose(
-    #     scenario='standard',
-    #     custom_params={
-    #         'initial_tumor_cells': 75,  # Override just this parameter
-    #         'steps': 30
-    #     },
-    #     print_every=1,
-    #     save_data=True,
-    #     show_molecules=True
-    # )
+    # Using a custom scenario, prompt the user for initializations
+    if choice == 'custom':
+        print(f"\nRunning custom simulation...")
+        steps = get_value('Step count', 'Enter the number of steps for this model. Please enter a number greater than 2: ', 2)
+        width = get_value('Width', 'Enter a width for the TME for this model. Please enter a number greater than 1: ')
+        height = get_value('Height', 'Enter a height for the TME for this model. Please enter a number greater than 1: ')
+        int_tumor_cell = get_value('Initial tumor cell population', 'Enter an initial tumor cell population for this model. Please enter a number greater than 1: ')
+        int_cd8 = get_value('Initial CD8+ T-cell population', 'Enter an initial CD8+ T-cell population for this model. Please enter a number greater than 1: ')
+        int_cd4 = get_value('Initial CD4+ T-cell population', 'Enter an initial CD4+ T-cell population for this model. Please enter a number greater than 1: ')
+        int_macrophage = get_value('Initial macrophage cell population', 'Enter an initial macrophage cell population for this model. Please enter a number greater than 1: ')
+        int_mdsc = get_value('Initial MDSC population', 'Enter an initial MDSC population for this model. Please enter a number greater than 1: ')
+
+        model = run_simulation_verbose(
+            scenario='custom',
+            custom_params={
+                'steps': steps,
+                'width': width,
+                'height': height,
+                'initial_tumor_cells': int_tumor_cell,
+                'initial_CD8Tcells': int_cd8,
+                'initial_CD4Tcells': int_cd4,
+                'initial_macrophages': int_macrophage,
+                'initial_MDSC': int_mdsc
+            },
+            print_every=5,
+            save_data=True,
+            show_molecules=True
+        )
+
+    else:
+        # Use a predefined scenario
+        print(f"\nRunning {choice} scenario...")
+        model = run_simulation_verbose(
+            scenario=choice,
+            print_every=5,
+            save_data=True,
+            show_molecules=False
+        )
     
     # Generate all visualization outputs
     print("\nGenerating comprehensive outputs...")
@@ -105,6 +122,8 @@ def main():
     print("  🧪 final_cytokine_concentrations.png - All molecular fields")
     print("  📈 simulation_dashboard.png - Comprehensive summary")
     print("  📋 cell_counts.csv - Raw data for further analysis")
+    print("="*80)
+    print("Move any files you want to save out of the 'simulation_output/' directory before doing a new run! They will be overridden! ")
     print("="*80)
 
 if __name__=="__main__":
