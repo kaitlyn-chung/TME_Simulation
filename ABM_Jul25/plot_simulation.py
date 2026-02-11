@@ -469,6 +469,19 @@ def plot_summary_dashboard(model, output_dir):
     norm = mcolors.BoundaryNorm(bounds, cmap.N)
     
     im1 = ax1.imshow(grid_map.T, cmap=cmap, norm=norm, origin="lower")
+    cbar = plt.colorbar(im1, ax=ax1, ticks=np.arange(10), shrink=0.8)
+    cbar.set_ticklabels([
+        "Empty",
+        "Cancer Stem",
+        "Cancer Prog",
+        "Cancer Senescent", 
+        "CD8+ T",
+        "CD4+ Helper",
+        "CD4+ Treg",
+        "MDSC",
+        "M1 Mac",
+        "M2 Mac"
+    ])
     ax1.set_title('Final Cell Distribution', fontweight='bold')
     ax1.set_xlabel('X Position')
     ax1.set_ylabel('Y Position')
