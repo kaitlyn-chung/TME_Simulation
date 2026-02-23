@@ -22,7 +22,10 @@ from ABM_Jul25.model import ABM_Model
 import ABM_Jul25.params as P
 from ABM_Jul25.scenarios import DEFAULT_SCENARIOS
 
-
+def save_fig(location, name):
+    plt.savefig(os.path.join(location, '{name}.png'), 
+            dpi=300, bbox_inches='tight')
+    
 def print_step_summary(model, step_num, step_time=None):
     """Print detailed summary of current model state."""
     print(f"\n{'='*60}")
@@ -341,6 +344,8 @@ def plot_grid(model, output_dir):
     plt.savefig(os.path.join(output_dir, 'final_cell_grid.png'), 
                 dpi=300, bbox_inches='tight')
     
+    save_fig(location=output_dir, name='final_cell_grid')
+    
     return fig
 
 
@@ -421,7 +426,6 @@ def plot_cytokine_concentrations(model, output_dir):
                 dpi=300, bbox_inches='tight')
     
     return fig
-
 
 def plot_summary_dashboard(model, output_dir):
     """
