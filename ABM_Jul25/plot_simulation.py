@@ -603,3 +603,5 @@ def plot_results_from_csv(csv_file="cell_counts.csv", output_dir="simulation_out
         print("pandas not available for plotting CSV data")
     except FileNotFoundError:
         print(f"CSV file {csv_file} not found")
+        return None
+    return fig 
