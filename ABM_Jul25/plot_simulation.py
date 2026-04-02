@@ -22,7 +22,6 @@ from ABM_Jul25.model import ABM_Model
 import ABM_Jul25.params as P
 from ABM_Jul25.scenarios import DEFAULT_SCENARIOS
 
-
 def print_step_summary(model, step_num, step_time=None):
     """Print detailed summary of current model state."""
     print(f"\n{'='*60}")
@@ -422,7 +421,6 @@ def plot_cytokine_concentrations(model, output_dir):
     
     return fig
 
-
 def plot_summary_dashboard(model, output_dir):
     """
     Create a comprehensive dashboard with cell grid, population dynamics, and key cytokines.
@@ -605,3 +603,5 @@ def plot_results_from_csv(csv_file="cell_counts.csv", output_dir="simulation_out
         print("pandas not available for plotting CSV data")
     except FileNotFoundError:
         print(f"CSV file {csv_file} not found")
+        return None
+    return fig 

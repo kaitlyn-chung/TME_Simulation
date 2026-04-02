@@ -20,7 +20,7 @@ from ABM_Jul25.agents import (
 )
 from ABM_Jul25.model import ABM_Model
 import ABM_Jul25.params as P
-from ABM_Jul25.scenarios import (DEFAULT_SCENARIOS, get_value)
+from ABM_Jul25.scenarios import (DEFAULT_SCENARIOS, get_value, confirm_value)
 from ABM_Jul25.plot_simulation import (run_simulation_verbose,
                                         plot_grid,
                                         plot_cytokine_concentrations,
@@ -40,9 +40,12 @@ def main():
 
     print("Available scenarios:")
     for name, params in DEFAULT_SCENARIOS.items():
-        print(f"  {name}: {params['initial_tumor_cells']} cancer, "
-              f"{params['initial_CD8Tcells']+params['initial_CD4Tcells']} T cells, "
-              f"{params['steps']} steps")
+        if name == 'custom':
+            print("  custom: You will be prompted to specify initial conditions for cancer cell, T cell, and number of steps size.")
+        else:
+            print(f"  {name}: {params['initial_tumor_cells']} cancer, "
+                f"{params['initial_CD8Tcells']+params['initial_CD4Tcells']} T cells, "
+                f"{params['steps']} steps")
     
     scenario_names = list(DEFAULT_SCENARIOS.keys())
     choice = input('Which scenario would you like to choose? ')
@@ -62,22 +65,24 @@ def main():
         int_macrophage = get_value('Initial macrophage cell population', 'Enter an initial macrophage cell population for this model. Please enter a number greater than 1: ')
         int_mdsc = get_value('Initial MDSC population', 'Enter an initial MDSC population for this model. Please enter a number greater than 1: ')
 
+        param_inputs={
+                    'steps': steps,
+                    'width': width,
+                    'height': height,
+                    'initial_tumor_cells': int_tumor_cell,
+                    'initial_CD8Tcells': int_cd8,
+                    'initial_CD4Tcells': int_cd4,
+                    'initial_macrophages': int_macrophage,
+                    'initial_MDSC': int_mdsc
+                }
+        
         model = run_simulation_verbose(
             scenario='custom',
-            custom_params={
-                'steps': steps,
-                'width': width,
-                'height': height,
-                'initial_tumor_cells': int_tumor_cell,
-                'initial_CD8Tcells': int_cd8,
-                'initial_CD4Tcells': int_cd4,
-                'initial_macrophages': int_macrophage,
-                'initial_MDSC': int_mdsc
-            },
+            custom_params=param_inputs,
             print_every=5,
             save_data=True,
             show_molecules=True
-        )
+            )
 
     else:
         # Use a predefined scenario

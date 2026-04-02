@@ -152,3 +152,22 @@ k_MDSC_rec_base = 2.43e-8 # molecules/sec = 0.0021/day
 k_MDSC_rec_max = 1.4e-7 # molecules/sec = 0.012/day max recruitment rate at saturated CCL2
 EC50_CCL2_MDSC_rec = 5e-10 * 1.25e-10 * Avogadro_No # molecules = 5e-10 M
 k_Mac_rec = 2.46e-7 # molecules/sec = 1.7e5 cell/mL/day
+
+# --- PD-L1 (Tumor cells) ---
+PDL1_baseline_mean      = 0.15        # normalized surface expression [0–1]
+PDL1_baseline_sd        = 0.05        # cell-to-cell heterogeneity
+PDL1_IFNg_max           = 0.75        # max fold-upregulation above baseline
+EC50_IFNg_PDL1          = 1e-9 * 1.25e-10 * Avogadro_No   # ~1 nM in molecules/grid
+k_PDL1_upregulation     = 1e-5        # 1/sec, rate toward IFNg-driven target
+k_PDL1_decay            = 5e-6        # 1/sec, surface turnover (~half-life ~38h)
+
+# --- PD-1 (CD8 T cells) ---
+PD1_baseline            = 0.05        # resting/naive PD-1 level [0–1]
+k_PD1_upregulation      = 1e-15       # 1/(molecules/grid * sec) — scales with IL-2 field
+k_PD1_decay             = 1e-6        # 1/sec, decay when unstimulated
+
+# --- PD-1:PD-L1 interaction & exhaustion ---
+k_PD1_signaling         = 2e-5        # 1/sec, exhaustion signal accumulation rate
+k_exhaustion_rate       = 1e-5        # 1/sec, exhaustion_level tracks signal
+k_exhaustion_recovery   = 5e-7        # 1/sec, partial recovery rate
+PD1_signal_threshold    = 0.05        # signal floor below which recovery activates
