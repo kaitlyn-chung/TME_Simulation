@@ -89,15 +89,18 @@ class ABM_Model(Model):
         initial_CD8Tcells: int = 20,
         initial_CD4Tcells: int = 30,
         initial_macrophages: int = 30,
-        initial_MDSC: int = 10
+        initial_MDSC: int = 10,
+        pdl1_pd1_axis: bool = True 
     ):
+    
         super().__init__()
         self.width  = width
         self.height = height
         self.timestep = P.timestep
-        
-        # Initialize ID counter
+    
         self._current_id = 0
+
+        self.pdl1_pd1_axis = pdl1_pd1_axis
 
         # 1) Create a SingleGrid: each grid contains only one cell
         self.grid = SingleGrid(width, height, torus=False)
@@ -163,6 +166,15 @@ class ABM_Model(Model):
 
         self.running = True
 
+        # ---- Metrics history ----
+        self.tumor_count_history = []
+        self.cd8_count_history   = []
+        self.cd8_state_counts    = {"effector": [], "prexhausted": [], "terminal": []}
+        self.mean_exhaustion     = []
+        self.mean_pdl1_tumor     = []
+        self.mean_pd1_cd8        = []
+        self.shannon_entropy_history = []
+
     def count_agents(self, agent_type):
         """
         Count alive agents of the given type in the current schedule.
@@ -203,6 +215,59 @@ class ABM_Model(Model):
             # If removal fails, just mark as dead
             agent.alive = False
             agent.pos = None
+
+    def _collect_metrics(self):
+        """Per-tick metric collection. Always runs regardless of axis state."""
+
+        # --- Population counts ---
+        n_tumor = self.count_agents(A.CancerCell)
+        n_cd8   = self.count_agents(A.CD8TCell)
+        self.tumor_count_history.append(n_tumor)
+        self.cd8_count_history.append(n_cd8)
+
+        # --- Shannon entropy of cell-type distribution ---
+        counts = [
+            n_tumor,
+            n_cd8,
+            self.count_agents(A.CD4TCell),
+            self.count_agents(A.Macrophage),
+            self.count_agents(A.MDSC),
+        ]
+        total = sum(counts)
+        if total > 0:
+            probs   = [c / total for c in counts if c > 0]
+            entropy = -sum(p * math.log(p) for p in probs)
+        else:
+            entropy = 0.0
+        self.shannon_entropy_history.append(entropy)
+
+        # --- PD-1/PD-L1 exhaustion metrics ---
+        # Collected regardless of axis state so lists stay the same length,
+        # making ON vs OFF comparison plots straightforward.
+        effector = prexhausted = terminal = 0
+        pd1_vals        = []
+        exhaustion_vals = []
+        pdl1_vals       = []
+
+        for agent in self.schedule.agents:
+            if isinstance(agent, A.CD8TCell) and agent.alive:
+                pd1_vals.append(agent.pd1)
+                exhaustion_vals.append(agent.exhaustion_level)
+                if agent.exhaustion_level < P.exhaustion_threshold_prex:
+                    effector += 1
+                elif agent.exhaustion_level < P.exhaustion_threshold_term:
+                    prexhausted += 1
+                else:
+                    terminal += 1
+            elif isinstance(agent, A.CancerCell) and agent.alive:
+                pdl1_vals.append(agent.pdl1)
+
+        self.cd8_state_counts["effector"].append(effector)
+        self.cd8_state_counts["prexhausted"].append(prexhausted)
+        self.cd8_state_counts["terminal"].append(terminal)
+        self.mean_pd1_cd8.append(np.mean(pd1_vals)        if pd1_vals        else 0.0)
+        self.mean_exhaustion.append(np.mean(exhaustion_vals) if exhaustion_vals else 0.0)
+        self.mean_pdl1_tumor.append(np.mean(pdl1_vals)    if pdl1_vals       else 0.0)
 
     def step(self):
         """
@@ -245,6 +310,7 @@ class ABM_Model(Model):
 
         # ---- 5) Data collection and stopping criterion ----
         self.datacollector.collect(self)
+        self._collect_metrics()                  # <-- add this line
         if self.count_agents(A.CancerCell) == 0:
             self.running = False
 
@@ -283,16 +349,12 @@ class ABM_Model(Model):
                 # (implicitly, if u < 1.0 it falls into MDSC interval next)
         
                 if u < threshold_cd8:
-                    print("threshold_cd8=", threshold_cd8)
-                    print("u=",u)
                     # recruit CD8
                     new_cd8 = A.CD8TCell(self._next_id(), self, (x, y))
                     self.grid.place_agent(new_cd8, (x, y))
                     self.schedule.add(new_cd8)
         
                 elif u < threshold_cd4:
-                    print("threshold_cd4=", threshold_cd4)
-                    print("u=",u)
                     # recruit CD4 (20% chance Treg, 80% Thelper)
                     if random.random() < P.TCD4_Treg_frac:
                         new_cd4 = A.CD4TCell(self._next_id(), self, (x, y), subtype=A.CD4TSubtype.CD4TREG)
@@ -302,16 +364,12 @@ class ABM_Model(Model):
                     self.schedule.add(new_cd4)
         
                 elif u < threshold_mac:
-                    print("threshold_mac=", threshold_mac)
-                    print("u=",u)
                     # recruit Macrophage (M1 by default)
                     new_mac = A.Macrophage(self._next_id(), self, (x, y), subtype=A.MacSubtype.M1)
                     self.grid.place_agent(new_mac, (x, y))
                     self.schedule.add(new_mac)
         
                 else:
-                    print("p_total=", p_total)
-                    print("u=",u)
                     # recruit MDSC
                     new_mdsc = A.MDSC(self._next_id(), self, (x, y))
                     self.grid.place_agent(new_mdsc, (x, y))
@@ -418,7 +476,6 @@ class ABM_Model(Model):
         #     P.delta_t,
         #     self.timestep
         # )
-        
 
     def initialize_cells(
         self,

@@ -132,7 +132,8 @@ def run_simulation_verbose(
     custom_params=None,
     print_every=1,
     save_data=True,
-    show_molecules=False
+    show_molecules=False,
+    pdl1_pd1_axis=True         
 ):
     """
     Run simulation with detailed step-by-step output.
@@ -188,11 +189,13 @@ def run_simulation_verbose(
         initial_CD8Tcells=initial_CD8Tcells,
         initial_CD4Tcells=initial_CD4Tcells,
         initial_macrophages=initial_macrophages,
-        initial_MDSC=initial_MDSC
+        initial_MDSC=initial_MDSC,
+        pdl1_pd1_axis=pdl1_pd1_axis
     )
     
     init_time = time.time() - start_time
     print(f"\nModel initialized in {init_time:.3f}s")
+
     
     # Print initial state
     if print_every <= 1:

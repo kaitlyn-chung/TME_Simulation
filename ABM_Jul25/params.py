@@ -171,3 +171,6 @@ k_PD1_signaling         = 2e-5        # 1/sec, exhaustion signal accumulation ra
 k_exhaustion_rate       = 1e-5        # 1/sec, exhaustion_level tracks signal
 k_exhaustion_recovery   = 5e-7        # 1/sec, partial recovery rate
 PD1_signal_threshold    = 0.05        # signal floor below which recovery activates
+
+exhaustion_threshold_prex = 0.30
+exhaustion_threshold_term = 0.70

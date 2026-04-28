@@ -36,9 +36,11 @@ class CancerCell(Agent):
 
         # Optionally track "age" if needed; not strictly required here:
         self.age = 0
-
-        self.pdl1 = random.gauss(P.PDL1_baseline_mean, P.PDL1_baseline_sd) # initialize heterogeneous surface expression of PDL1
-        self.pdl1 = max(0.0, min(1.0, self.pdl1))
+        if self.model.pdl1_pd1_axis:
+            self.pdl1 = random.gauss(P.PDL1_baseline_mean, P.PDL1_baseline_sd)
+            self.pdl1 = max(0.0, min(1.0, self.pdl1))
+        else:
+            self.pdl1 = 0.0
 
     def step(self):
         # Check if agent has a valid position
@@ -54,12 +56,13 @@ class CancerCell(Agent):
         # Consume IFNg
         self.model.IFNg_consumption_map[x, y] += P.IFNg_uptake_cancer * self.model.timestep
         # Control of IFNg dynamics
-        local_IFNg = self.model.IFNg_field[x, y] # looks at local IFNg signal for upregulation of PDL1
-        pdl1_target = P.PDL1_baseline_mean + P.PDL1_IFNg_max * (
-            local_IFNg / (local_IFNg + P.EC50_IFNg_PDL1)) # use of MM kinetics to determine equilibrium at a give timepoint
-        self.pdl1 += P.k_PDL1_upregulation * (pdl1_target - self.pdl1) * self.model.timestep # gradual increase towards target
-        self.pdl1 += P.k_PDL1_decay * (P.PDL1_baseline_mean - self.pdl1) * self.model.timestep # gradual decrease away from baseline
-        self.pdl1  = max(0.0, min(1.0, self.pdl1))
+        if self.model.pdl1_pd1_axis:
+            local_IFNg = self.model.IFNg_field[x, y] # looks at local IFNg signal for upregulation of PDL1
+            pdl1_target = P.PDL1_baseline_mean + P.PDL1_IFNg_max * (
+                local_IFNg / (local_IFNg + P.EC50_IFNg_PDL1)) # use of MM kinetics to determine equilibrium at a give timepoint
+            self.pdl1 += P.k_PDL1_upregulation * (pdl1_target - self.pdl1) * self.model.timestep # gradual increase towards target
+            self.pdl1 += P.k_PDL1_decay * (P.PDL1_baseline_mean - self.pdl1) * self.model.timestep # gradual decrease away from baseline
+            self.pdl1  = max(0.0, min(1.0, self.pdl1))
 
         if self.subtype == CancerSubtype.STEM:
             self._stem_behavior(x, y)
@@ -287,9 +290,10 @@ class CD8TCell(Agent):
         self.IL2_accum += local_IL2 * self.model.timestep
 
         # --- PD-1 upregulation with activation (IL-2 as proxy for antigen stimulation) ---
-        self.pd1 = min(1.0, self.pd1 + P.k_PD1_upregulation * local_IL2 * self.model.timestep)
-        # Slow decay back toward baseline when unstimulated
-        self.pd1 = max(P.PD1_baseline, self.pd1 - P.k_PD1_decay * self.model.timestep)
+        if self.model.pdl1_pd1_axis:
+            self.pd1 = min(1.0, self.pd1 + P.k_PD1_upregulation * local_IL2 * self.model.timestep)
+            # Slow decay back toward baseline when unstimulated
+            self.pd1 = max(P.PD1_baseline, self.pd1 - P.k_PD1_decay * self.model.timestep)
 
         # Check if we have enough IL-2 exposure AND enough time since last division
         # AND haven't exceeded division limit.
@@ -390,18 +394,20 @@ class CD8TCell(Agent):
                 local_NO = self.model.NO_field[x, y] 
                 H_MDSC = 1.0 / (1.0 + (N_MDSC / P.k_hill_MDSC_TCD8)**P.n_hill_MDSC_TCD8) # Hill-inhibition of killing by MDSC
                 H_Arg1 = local_Arg1 / (local_Arg1 + P.IC50_Arg1_TCD8) # Hill-inhibition by Arg1, n=1
-                H_NO = local_NO / (local_NO + P.IC50_NO_TCD8) # Hill-inhibition by NO, n=1H_PD1 = self.exhaustion_level  # already normalized 0–1
-                
-                # --- PD-1:PD-L1 contact signaling ---
-                pdl1_signal = self.pd1 * target.pdl1   # both in [0,1]
-                any_pdl1_contact = True
+                H_NO = local_NO / (local_NO + P.IC50_NO_TCD8)  # Hill-inhibition by NO, n=1 
 
-                self.exhaustion_signal = min(1.0, self.exhaustion_signal + P.k_PD1_signaling * pdl1_signal * self.model.timestep)
-                # Exhaustion level tracks signal with its own time constant
-                self.exhaustion_level += P.k_exhaustion_rate * (self.exhaustion_signal - self.exhaustion_level) * self.model.timestep
-                self.exhaustion_level = max(0.0, min(1.0, self.exhaustion_level))
-                
-                H_PD1 = self.exhaustion_level
+                # --- PD-1:PD-L1 contact signaling ---
+                if self.model.pdl1_pd1_axis:
+                    pdl1_signal = self.pd1 * target.pdl1
+                    if pdl1_signal > P.PD1_signal_threshold:
+                        any_pdl1_contact = True
+                    self.exhaustion_signal = min(1.0,
+                        self.exhaustion_signal + P.k_PD1_signaling * pdl1_signal * self.model.timestep)
+                    self.exhaustion_level += P.k_exhaustion_rate * (
+                        self.exhaustion_signal - self.exhaustion_level) * self.model.timestep
+                    self.exhaustion_level = max(0.0, min(1.0, self.exhaustion_level))
+
+                H_PD1 = self.exhaustion_level if self.model.pdl1_pd1_axis else 0.0
                 alpha = (P.k_TCD8_killing
                         * (N_CD8 / float(N_totNeighbor))
                         * (1.0 - H_MDSC)

@@ -26,6 +26,10 @@ from ABM_Jul25.plot_simulation import (run_simulation_verbose,
                                         plot_cytokine_concentrations,
                                         plot_summary_dashboard,
                                         plot_results_from_csv)
+import warnings
+warnings.filterwarnings("ignore")
+
+pdl1_pd1_axis = False
 
 # Main execution
 def main():
@@ -75,13 +79,14 @@ def main():
                     'initial_macrophages': int_macrophage,
                     'initial_MDSC': int_mdsc
                 }
-        
+    
         model = run_simulation_verbose(
             scenario='custom',
             custom_params=param_inputs,
             print_every=5,
             save_data=True,
-            show_molecules=True
+            show_molecules=True,
+            pdl1_pd1_axis=pdl1_pd1_axis
             )
 
     else:
@@ -91,7 +96,8 @@ def main():
             scenario=choice,
             print_every=5,
             save_data=True,
-            show_molecules=False
+            show_molecules=False,
+            pdl1_pd1_axis=pdl1_pd1_axis        
         )
     
     # Generate all visualization outputs
