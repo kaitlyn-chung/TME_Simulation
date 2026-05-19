@@ -218,7 +218,7 @@ def run_abm(param_set: dict, n_replicates: int = 3, seed_offset: int = 0) -> dic
             # Pull scenario config
             scenario_cfg = DEFAULT_SCENARIOS['standard']
 
-            # Instantiate and run model directly (avoids print overhead of run_simulation_verbose)
+            # Instantiate and run model directly
             model = ABM_Model(
                 width=scenario_cfg['width'],
                 height=scenario_cfg['height'],
@@ -310,7 +310,7 @@ def _compute_summary_stats(model) -> dict:
 # 4. SAMPLING AND EVALUATION
 # ─────────────────────────────────────────────────────────────────────────────
 
-def generate_samples(N: int = 64, seed: int = 42) -> np.ndarray:
+def generate_samples(N: int = 3, seed: int = 42) -> np.ndarray:
     """
     Generate Sobol sample matrix.
 
@@ -617,7 +617,7 @@ if __name__ == '__main__':
 
     # Step 1.5: Create the output directory, checking that it exists
     if os.path.exists(args.output_dir):   # Will hold onto cache of previously run simulations if we don't clear what already exists
-        shutil.rmtree(args.output_dir)os.makedirs(args.output_dir, exist_ok=True
+        shutil.rmtree(args.output_dir)
                                                   
     os.makedirs(args.output_dir, exist_ok=True)
     
