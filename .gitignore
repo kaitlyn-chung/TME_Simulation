@@ -7,8 +7,11 @@
 
 
 # outputs
-simulation_ouput/
+**/simulation_output/
+**/sensitivity_results/
 
+# jupyter notebook checkpoints
+**/.ipynb_checkpoints/
 
 # python cache
 **/__pycache__/
