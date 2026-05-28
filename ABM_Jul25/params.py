@@ -112,6 +112,8 @@ IC50_Arg1_TCD8 = 5.3e+11 # molecules = 61.7 mU
 IC50_NO_TCD8 = 7.5e-10 * 1.25e-10 * Avogadro_No # molecules = 7.5e-10 M
 
 # CD4T Cell parameters
+init_naive_frac = 0.05 # check this value
+commitment_delay = 24*3600 # sec = 24 hours 
 TCD4_lifespanMean = 111456 # sec = 1.29 days
 TCD4_lifespanSD = 12960 # sec = 0.15 days
 TCD4_Treg_frac = 0.2 # 20% of CD4 is Treg by default

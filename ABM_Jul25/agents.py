@@ -222,7 +222,13 @@ class CancerCell(Agent):
         self.model.grid.move_agent(self, new_pos)
         self.pos = new_pos
 
-
+class CD8TSubtype(Enum):
+    CD8T_activated = auto()
+    CD8T_naive  = auto()
+    CD8T_exhausted = auto()
+    CD8T_effector = auto()
+    CD8T_memory = auto()
+    
 class CD8TCell(Agent):
     """
     CD8+ TCell agent with:
@@ -234,7 +240,7 @@ class CD8TCell(Agent):
       - Fixed‐probability migration (no chemotaxis).
     """
 
-    def __init__(self, unique_id, model, pos):
+    def __init__(self, unique_id, model, pos, subtype=None):
         super().__init__(model)
         self.unique_id = unique_id
         self.pos = pos
@@ -256,6 +262,15 @@ class CD8TCell(Agent):
 
         # 4) Mark as alive
         self.alive = True
+
+        # 5) Determine subtype
+        if subtype is None:
+            if random.random() < P.init_naive_frac:
+                self.subtype = CD8TSubtype.CD8T_naive
+            else:
+                self.subtype = CD8TSubtype.CD8T_activated
+        else:
+            self.subtype = subtype
 
     def step(self):
         """
@@ -429,6 +444,8 @@ class CD8TCell(Agent):
 class CD4TSubtype(Enum):
     CD4THELPER = auto()
     CD4TREG  = auto()
+    CD4_naive = auto()
+    CD4_activated = auto()
     
 class CD4TCell(Agent):
     """
@@ -447,14 +464,17 @@ class CD4TCell(Agent):
         self.unique_id = unique_id
         self.pos = pos
 
-        # 1) Assign subtype: if not provided, 20% chance to be Treg
+        # Initial state
         if subtype is None:
-            if random.random() < P.TCD4_Treg_frac:
-                self.subtype = CD4TSubtype.CD4TREG
+            if random.random() < P.init_naive_frac:
+                self.subtype = CD4TSubtype.CD4_naive
             else:
-                self.subtype = CD4TSubtype.CD4THELPER
+                self.subtype = CD4TSubtype.CD4_activated
         else:
             self.subtype = subtype
+
+        # Track time since activation
+        self.activation_age = 0.0
 
         # 2) Sample a lifespan (seconds) from Normal(mean, sd), clamp at ≥ 0
         raw = random.gauss(P.TCD4_lifespanMean, P.TCD4_lifespanSD)
@@ -483,12 +503,32 @@ class CD4TCell(Agent):
             except ValueError:
                 pass
             return
+        
+        # Determine if the naive cell is ready to be activated
+        if self.subtype == CD4TSubtype.CD4_naive:
+            local_IL2 = self.model.IL2_field[x, y]
 
-        # ---- 2) Treg differentiation ----
-        if self.subtype == CD4TSubtype.CD4THELPER:
-            p_Th_diff_Treg = 1 - math.exp(-P.TCD4_k_Th_diff_Treg * self.model.timestep)
-            if random.random() <= p_Th_diff_Treg:
-                self.subtype = CD4TSubtype.CD4TREG
+            p_activate = 1 - math.exp(-P.k_TCD4_activation * self.model.timestep * local_IL2)
+
+            if random.random() < p_activate:
+                self.subtype = CD4TSubtype.CD4_activated
+                self.activation_age = 0.0  # reset clock
+            return
+
+        # Activated cell remains activated (driven by commitment delay) before differentiating
+        if self.subtype == CD4TSubtype.CD4_activated:
+            self.activation_age += self.model.timestep
+
+            if self.activation_age > P.commitment_delay:
+                local_TGFb = self.model.TGFb_field[x, y]
+
+                # Example cytokine-driven fate choice
+                p_Treg = local_TGFb / (local_TGFb + P.EC50_TGFb)
+
+                if random.random() < p_Treg:
+                    self.subtype = CD4TSubtype.CD4TREG
+                else:
+                    self.subtype = CD4TSubtype.CD4THELPER
 
         # ---- 3) Proliferation (induced by Arg1, at most once per 24h, max 4 divisions) ----
         local_Arg1 = self.model.Arg1_field[x, y]

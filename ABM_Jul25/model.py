@@ -330,8 +330,8 @@ class ABM_Model(Model):
                 alpha_MDSC = P.k_MDSC_rec_base + P.k_MDSC_rec_max * local_CCL2 / (local_CCL2 + P.EC50_CCL2_MDSC_rec)
                 p_MDSC_rec = 1.0 - math.exp(-alpha_MDSC * dt)
                 
-                # 2) Total "attempt" rate
-                p_total = p_CD8T_rec + p_CD4T_rec + p_Mac_rec + p_MDSC_rec
+                # 2) Total "attempt" rate is either 1 or the sum of the probabilities
+                p_total = min(1.0, p_CD8T_rec + p_CD4T_rec + p_Mac_rec + p_MDSC_rec)
 
                 if p_total <= 0:
                     continue  # no recruitment possible

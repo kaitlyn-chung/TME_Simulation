@@ -310,7 +310,7 @@ def _compute_summary_stats(model) -> dict:
 # 4. SAMPLING AND EVALUATION
 # ─────────────────────────────────────────────────────────────────────────────
 
-def generate_samples(N: int = 3, seed: int = 42) -> np.ndarray:
+def generate_samples(N: int = 64, seed: int = 42) -> np.ndarray:
     """
     Generate Sobol sample matrix.
 

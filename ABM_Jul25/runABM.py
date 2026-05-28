@@ -59,26 +59,20 @@ def main():
 
     # Using a custom scenario, prompt the user for initializations
     if choice == 'custom':
-        print(f"\nRunning custom simulation...")
-        steps = get_value('Step count', 'Enter the number of steps for this model. Please enter a number greater than 2: ', 2)
-        width = get_value('Width', 'Enter a width for the TME for this model. Please enter a number greater than 1: ')
-        height = get_value('Height', 'Enter a height for the TME for this model. Please enter a number greater than 1: ')
-        int_tumor_cell = get_value('Initial tumor cell population', 'Enter an initial tumor cell population for this model. Please enter a number greater than 1: ')
-        int_cd8 = get_value('Initial CD8+ T-cell population', 'Enter an initial CD8+ T-cell population for this model. Please enter a number greater than 1: ')
-        int_cd4 = get_value('Initial CD4+ T-cell population', 'Enter an initial CD4+ T-cell population for this model. Please enter a number greater than 1: ')
-        int_macrophage = get_value('Initial macrophage cell population', 'Enter an initial macrophage cell population for this model. Please enter a number greater than 1: ')
-        int_mdsc = get_value('Initial MDSC population', 'Enter an initial MDSC population for this model. Please enter a number greater than 1: ')
+        inputs = [
+            ("steps", "Step count", "Enter number of steps: ", 2),
+            ("width", "Width", "Enter width: ", 1),
+            ("height", "Height", "Enter height: ", 1),
+            ("initial_tumor_cells", "Initial tumor cell population", "Enter tumor cells: ", 0),
+            ("initial_CD8Tcells", "Initial CD8+ T cells", "Enter CD8 count: ", 0),
+            ("initial_CD4Tcells", "Initial CD4+ T cells", "Enter CD4 count: ", 0),
+            ("initial_macrophages", "Initial macrophages", "Enter macrophages: ", 0),
+            ("initial_MDSC", "Initial MDSCs", "Enter MDSCs: ", 0),
+        ]
 
-        param_inputs={
-                    'steps': steps,
-                    'width': width,
-                    'height': height,
-                    'initial_tumor_cells': int_tumor_cell,
-                    'initial_CD8Tcells': int_cd8,
-                    'initial_CD4Tcells': int_cd4,
-                    'initial_macrophages': int_macrophage,
-                    'initial_MDSC': int_mdsc
-                }
+        param_inputs = {}
+        for key, name, prompt, min_val in inputs:
+            param_inputs[key] = get_value(name, prompt, min_val)
     
         model = run_simulation_verbose(
             scenario='custom',

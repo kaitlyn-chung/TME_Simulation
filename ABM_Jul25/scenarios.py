@@ -59,7 +59,7 @@ DEFAULT_SCENARIOS = {
 }
 
 def confirm_value(name: str, value) -> bool:
-    name.lower()
+    name = name.lower()
     ans = input(f"You entered {value} for {name}. Enter 'Y' to confirm, anything else to retry: ").strip().upper()
     return ans == "Y"
 
