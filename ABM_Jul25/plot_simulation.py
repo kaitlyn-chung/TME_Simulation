@@ -13,8 +13,8 @@ import os
 
 from ABM_Jul25.agents import (
     CancerCell, CancerSubtype,
-    CD8TCell,
-    CD4TCell, CD4TSubtype,
+    CD8TCell, CD8DiffState, CD8ExhaustionState,
+    CD4TCell, CD4DiffState,
     MDSC,
     Macrophage, MacSubtype
 )
@@ -36,10 +36,22 @@ def print_step_summary(model, step_num, step_time=None):
     cancer_senes = model.count_cell_type(CancerCell, subtype=CancerSubtype.SENESCENT)
     total_cancer = cancer_stem + cancer_prog + cancer_senes
     
-    cd8_count = model.count_cell_type(CD8TCell)
-    cd4_helper = model.count_cell_type(CD4TCell, subtype=CD4TSubtype.CD4THELPER)
-    cd4_treg = model.count_cell_type(CD4TCell, subtype=CD4TSubtype.CD4TREG)
-    total_cd4 = cd4_helper + cd4_treg
+    cd8_naive = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TNAIVE)
+    cd8_activated = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TACTIVATED)
+    cd8_memory = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TMEMORY)
+    cd8_count = cd8_naive + cd8_activated + cd8_memory
+
+    cd8_exhausted = model.count_cell_type(
+        CD8TCell,
+        exhaustion_state=CD8ExhaustionState.CD8TTERMINAL
+    )
+    ratio_exhausted = cd8_exhausted / cd8_count if cd8_count > 0 else 0
+
+    cd4_naive = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4NAIVE)
+    cd4_activated = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
+    cd4_helper = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
+    cd4_treg = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TREG)
+    total_cd4 = cd4_naive + cd4_activated + cd4_helper + cd4_treg
     
     m1_count = model.count_cell_type(Macrophage, subtype=MacSubtype.M1)
     m2_count = model.count_cell_type(Macrophage, subtype=MacSubtype.M2)
@@ -57,10 +69,20 @@ def print_step_summary(model, step_num, step_time=None):
     print(f"    └─ Senescent:  {cancer_senes:3d}")
     print(f"")
     print(f"  Immune Cells (Total: {total_immune:3d})")
-    print(f"    ├─ CD8+ T:     {cd8_count:3d}")
-    print(f"    ├─ CD4+ T:     {total_cd4:3d} (Helper: {cd4_helper}, Treg: {cd4_treg})")
-    print(f"    ├─ Macrophage: {total_mac:3d} (M1: {m1_count}, M2: {m2_count})")
-    print(f"    └─ MDSC:       {mdsc_count:3d}")
+    print(f"    ├─ CD8+ T:         {cd8_count:3d}")
+    print(f"    │   ├─ Naive:      {cd8_naive:3d}")
+    print(f"    │   ├─ Activated:  {cd8_activated:3d}")
+    print(f"    │   ├─ Memory:     {cd8_memory:3d}")
+    print(f"    │   └─ Exhausted:  {cd8_exhausted:3d}")
+    print(f"    ├─ CD4+ T:         {total_cd4:3d}")
+    print(f"    │   ├─ Naive:      {cd4_naive:3d}")
+    print(f"    │   ├─ Activated:  {cd4_activated:3d}")
+    print(f"    │   ├─ Helper:     {cd4_helper:3d}")
+    print(f"    │   ├─ Regulatory: {cd4_treg:3d}")
+    print(f"    ├─ Macrophage:     {total_mac:3d}")
+    print(f"    │   ├─ M1:         {m1_count:3d}")
+    print(f"    │   └─ M2:         {m2_count:3d}")
+    print(f"    └─ MDSC:           {mdsc_count:3d}")
     print(f"")
     print(f"  TOTAL CELLS: {total_cells:3d}")
     
@@ -83,10 +105,11 @@ def print_step_summary(model, step_num, step_time=None):
         helper_treg_ratio = 0
     
     print(f"KEY RATIOS:")
-    print(f"  Immune:Cancer = {immune_cancer_ratio:.2f}")
-    print(f"  CD8:Cancer    = {cd8_cancer_ratio:.2f}")
-    print(f"  M1:M2         = {m1_m2_ratio:.2f}")
-    print(f"  Helper:Treg   = {helper_treg_ratio:.2f}")
+    print(f"  Immune:Cancer           = {immune_cancer_ratio:.2f}")
+    print(f"  CD8:Cancer              = {cd8_cancer_ratio:.2f}")
+    print(f"  Exhausted CD8:Total CD8 = {ratio_exhausted:.2f}")
+    print(f"  M1:M2                   = {m1_m2_ratio:.2f}")
+    print(f"  Helper:Treg             = {helper_treg_ratio:.2f}")
 
 def print_molecular_summary(model):
     """Print summary of molecular concentrations."""
@@ -109,9 +132,18 @@ def save_step_data(model, step_num, output_dir='simulation_output'):
     cancer_stem = model.count_cell_type(CancerCell, subtype=CancerSubtype.STEM)
     cancer_prog = model.count_cell_type(CancerCell, subtype=CancerSubtype.PROGENITOR)
     cancer_senes = model.count_cell_type(CancerCell, subtype=CancerSubtype.SENESCENT)
-    cd8_count = model.count_cell_type(CD8TCell)
-    cd4_helper = model.count_cell_type(CD4TCell, subtype=CD4TSubtype.CD4THELPER)
-    cd4_treg = model.count_cell_type(CD4TCell, subtype=CD4TSubtype.CD4TREG)
+    cd8_naive = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TNAIVE)
+    cd8_activated = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TACTIVATED)
+    cd8_memory = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TMEMORY)
+    cd8_exhausted = model.count_cell_type(
+        CD8TCell,
+        exhaustion_state=CD8ExhaustionState.CD8TTERMINAL
+    )
+
+    cd4_naive = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4NAIVE)
+    cd4_activated = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
+    cd4_helper = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
+    cd4_treg = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TREG)
     m1_count = model.count_cell_type(Macrophage, subtype=MacSubtype.M1)
     m2_count = model.count_cell_type(Macrophage, subtype=MacSubtype.M2)
     mdsc_count = model.count_cell_type(MDSC)
@@ -120,12 +152,13 @@ def save_step_data(model, step_num, output_dir='simulation_output'):
     csv_file = os.path.join(output_dir, "cell_counts.csv")
     if step_num == 0:
         with open(csv_file, 'w') as f:
-            f.write("Step,Cancer_Stem,Cancer_Prog,Cancer_Senes,CD8,CD4_Helper,CD4_Treg,M1,M2,MDSC\n")
-    
+            f.write("Step,Cancer_Stem,Cancer_Prog,Cancer_Senes,"
+                    "CD8_Naive,CD8_Activated,CD8_Memory,CD8_Exhausted,"
+                    "CD4_Naive,CD4_Activated,CD4_Helper,CD4_Treg,M1,M2,MDSC\n")
     with open(csv_file, 'a') as f:
-        f.write(f"{step_num},{cancer_stem},{cancer_prog},{cancer_senes},{cd8_count},"
-                f"{cd4_helper},{cd4_treg},{m1_count},{m2_count},{mdsc_count}\n")
-
+        f.write(f"{step_num},{cancer_stem},{cancer_prog},{cancer_senes},"
+                f"{cd8_naive},{cd8_activated},{cd8_memory},{cd8_exhausted},"
+                f"{cd4_naive},{cd4_activated},{cd4_helper},{cd4_treg},{m1_count},{m2_count},{mdsc_count}\n")
 
 def run_simulation_verbose(
     scenario='standard',
@@ -286,9 +319,9 @@ def plot_grid(model, output_dir):
                 grid_map[x, y] = 4
 
             elif isinstance(occupant, CD4TCell):
-                if occupant.subtype == CD4TSubtype.CD4THELPER:
+                if occupant.diff_state == CD4DiffState.CD4THELPER:
                     grid_map[x, y] = 5
-                else:  # CD4TREG
+                elif occupant.diff_state == CD4DiffState.CD4TREG:
                     grid_map[x, y] = 6
 
             elif isinstance(occupant, MDSC):
@@ -424,6 +457,57 @@ def plot_cytokine_concentrations(model, output_dir):
     
     return fig
 
+def plot_immune_population(csv_file, output_dir, ax=None):
+    """
+    Plot CD8 and CD4 T-cell populations with differentiated states using color shades.
+    """
+    try:
+        df = pd.read_csv(csv_file)
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(20, 12))
+        else:
+            fig = ax.figure
+
+        # --- Color palettes (shades) ---
+        cd8_colors = ['#08306b', '#2171b5', '#6baed6', '#c6dbef']  # dark → light blue
+        cd4_colors = ['#67000d', '#cb181d', '#fb6a4a', '#fcbba1']  # dark → light red
+
+        # --- CD8 (blue shades) ---
+        ax.plot(df['Step'], df['CD8_Naive'], color=cd8_colors[3], linestyle='-',  label='CD8 Naive')
+        ax.plot(df['Step'], df['CD8_Activated'], color=cd8_colors[2], linestyle='--', label='CD8 Activated')
+        ax.plot(df['Step'], df['CD8_Memory'], color=cd8_colors[1], linestyle=':', label='CD8 Memory')
+        ax.plot(df['Step'], df['CD8_Exhausted'], color=cd8_colors[0], linestyle='-.', label='CD8 Exhausted')
+
+        # --- CD4 (red shades) ---
+        ax.plot(df['Step'], df['CD4_Naive'], color=cd4_colors[3], linestyle='-', label='CD4 Naive')
+        ax.plot(df['Step'], df['CD4_Activated'], color=cd4_colors[2], linestyle='--', label='CD4 Activated')
+        ax.plot(df['Step'], df['CD4_Helper'], color=cd4_colors[1], linestyle=':', label='CD4 Helper')
+        ax.plot(df['Step'], df['CD4_Treg'], color=cd4_colors[0], linestyle='-.', label='CD4 Treg')
+
+        # Labels
+        ax.set_xlabel('Step')
+        ax.set_ylabel('Cell Count')
+        ax.set_title('T Cell Populations Over Time', fontweight='bold')
+
+        # Legend & grid
+        ax.legend(ncol=2)
+        ax.grid(True, alpha=0.3)
+
+        if ax is None and output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            plt.savefig(
+                os.path.join(output_dir, 'immune_population_over_time.png'),
+                dpi=300,
+                bbox_inches='tight'
+            )
+
+        return fig
+
+    except Exception as e:
+        print(f"Error generating plot: {e}")
+        return None
+
 def plot_summary_dashboard(model, output_dir):
     """
     Create a comprehensive dashboard with cell grid, population dynamics, and key cytokines.
@@ -450,7 +534,7 @@ def plot_summary_dashboard(model, output_dir):
             elif isinstance(occupant, CD8TCell):
                 grid_map[x, y] = 4
             elif isinstance(occupant, CD4TCell):
-                if occupant.subtype == CD4TSubtype.CD4THELPER:
+                if occupant.diff_state == CD4DiffState.CD4THELPER:
                     grid_map[x, y] = 5
                 else:
                     grid_map[x, y] = 6
@@ -563,14 +647,7 @@ def plot_results_from_csv(csv_file="cell_counts.csv", output_dir="simulation_out
 
         # Immune cells subplot
         ax2 = fig.add_subplot(2, 2, 2)
-        ax2.plot(df['Step'], df['CD8'], 'b-', label='CD8+ T', linewidth=2)
-        ax2.plot(df['Step'], df['CD4_Helper'], color='purple', label='CD4+ Helper', linewidth=2)
-        ax2.plot(df['Step'], df['CD4_Treg'], color='pink', label='CD4+ Treg', linewidth=2)
-        ax2.set_xlabel('Step')
-        ax2.set_ylabel('Cell Count')
-        ax2.set_title('T Cell Populations')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
+        plot_immune_population(csv_file, output_dir, ax=ax2)
 
         # Myeloid cells subplot
         ax3 = fig.add_subplot(2, 2, 3)
@@ -586,7 +663,8 @@ def plot_results_from_csv(csv_file="cell_counts.csv", output_dir="simulation_out
         # Total populations subplot
         ax4 = fig.add_subplot(2, 2, 4)
         total_cancer = df['Cancer_Stem'] + df['Cancer_Prog'] + df['Cancer_Senes']
-        total_immune = (df['CD8'] + df['CD4_Helper'] + df['CD4_Treg'] +
+        total_immune = (df['CD8_Naive'] + df['CD8_Activated'] + df['CD8_Memory'] + df['CD8_Exhausted'] +
+                        df['CD4_Helper'] + df['CD4_Treg'] +
                         df['M1'] + df['M2'] + df['MDSC'])
         ax4.plot(df['Step'], total_cancer, color='red', label='Total Cancer', linewidth=3)
         ax4.plot(df['Step'], total_immune, color='blue', label='Total Immune', linewidth=3)

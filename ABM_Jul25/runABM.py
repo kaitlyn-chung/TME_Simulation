@@ -13,8 +13,8 @@ import os
 # Imports from this package
 from ABM_Jul25.agents import (
     CancerCell, CancerSubtype,
-    CD8TCell,
-    CD4TCell, CD4TSubtype,
+    CD8TCell, CD8DiffState, CD8ExhaustionState,
+    CD4TCell, CD4DiffState,
     MDSC,
     Macrophage, MacSubtype
 )
