@@ -10,6 +10,7 @@ import numpy as np
 import random
 import time
 import os
+import pandas as pd
 
 from ABM_Jul25.agents import (
     CancerCell, CancerSubtype,
@@ -41,10 +42,12 @@ def print_step_summary(model, step_num, step_time=None):
     cd8_memory = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TMEMORY)
     cd8_count = cd8_naive + cd8_activated + cd8_memory
 
-    cd8_exhausted = model.count_cell_type(
-        CD8TCell,
-        exhaustion_state=CD8ExhaustionState.CD8TTERMINAL
-    )
+    cd8_exhausted = model.count_cell_type(CD8TCell, 
+                    exhaustion_state=CD8ExhaustionState.CD8TTERMINAL)
+    cd8_effector = model.count_cell_type(CD8TCell,
+                    exhaustion_state=CD8ExhaustionState.CD8TEFFECTOR)
+    cd8_notexhausted = model.count_cell_type(CD8TCell,
+                    exhaustion_state=CD8ExhaustionState.CD8TNOTEXHAUSTED)
     ratio_exhausted = cd8_exhausted / cd8_count if cd8_count > 0 else 0
 
     cd4_naive = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4NAIVE)
@@ -73,6 +76,8 @@ def print_step_summary(model, step_num, step_time=None):
     print(f"    │   ├─ Naive:      {cd8_naive:3d}")
     print(f"    │   ├─ Activated:  {cd8_activated:3d}")
     print(f"    │   ├─ Memory:     {cd8_memory:3d}")
+    print(f"    │   ├─ Not Exhausted: {cd8_notexhausted:3d}")
+    print(f"    │   ├─ Effector:   {cd8_effector:3d}")
     print(f"    │   └─ Exhausted:  {cd8_exhausted:3d}")
     print(f"    ├─ CD4+ T:         {total_cd4:3d}")
     print(f"    │   ├─ Naive:      {cd4_naive:3d}")
@@ -316,25 +321,33 @@ def plot_grid(model, output_dir):
                     grid_map[x, y] = 3
 
             elif isinstance(occupant, CD8TCell):
-                grid_map[x, y] = 4
+                if occupant.diff_state == CD8DiffState.CD8TNAIVE:
+                    grid_map[x, y] = 4
+                elif occupant.diff_state == CD8DiffState.CD8TACTIVATED:
+                    grid_map[x, y] = 5
+                elif occupant.diff_state == CD8DiffState.CD8TMEMORY:
+                    grid_map[x, y] = 6
 
             elif isinstance(occupant, CD4TCell):
                 if occupant.diff_state == CD4DiffState.CD4THELPER:
-                    grid_map[x, y] = 5
+                    grid_map[x, y] = 7
                 elif occupant.diff_state == CD4DiffState.CD4TREG:
-                    grid_map[x, y] = 6
+                    grid_map[x, y] = 8
 
             elif isinstance(occupant, MDSC):
-                grid_map[x, y] = 7
+                grid_map[x, y] = 9
 
             elif isinstance(occupant, Macrophage):
                 if occupant.subtype == MacSubtype.M1:
-                    grid_map[x, y] = 8
+                    grid_map[x, y] = 10
                 else:  # M2
-                    grid_map[x, y] = 9
+                    grid_map[x, y] = 11
 
             else:
                 grid_map[x, y] = 0
+
+    unique_vals = np.unique(grid_map)
+    print("Grid values present:", unique_vals)
 
     # Define colormap and normalization
     cmap = mcolors.ListedColormap([
@@ -342,25 +355,29 @@ def plot_grid(model, output_dir):
         "lightgreen",  # 1 Stem
         "orange",      # 2 Progenitor
         "red",         # 3 Senescent
-        "blue",        # 4 CD8
-        "purple",      # 5 CD4 Thelper
-        "pink",        # 6 CD4 Treg
-        "gray",        # 7 MDSC
-        "cyan",        # 8 M1
-        "magenta"      # 9 M2
+        "blue",        # 4 CD8 naive
+        "mediumblue",  # 5 CD8 activated/memory (darker shade)
+        "navy",        # 6 CD8 memory (even darker shade)
+        "purple",      # 7 CD4 Thelper
+        "pink",        # 8 CD4 Treg
+        "gray",        # 9 MDSC
+        "cyan",        # 10 M1
+        "magenta"      # 11 M2
     ])
-    bounds = np.arange(-0.5, 10.5, 1.0)
+    bounds = np.arange(-0.5, 11.5, 1.0)
     norm = mcolors.BoundaryNorm(bounds, cmap.N)
 
     plt.figure(figsize=(10, 8))
-    plt.imshow(grid_map.T, cmap=cmap, norm=norm, origin="lower")
-    cbar = plt.colorbar(ticks=list(range(10)), shrink=0.8)
+    plt.imshow(grid_map.T, cmap=cmap, norm=norm, origin="lower", interpolation='nearest')
+    cbar = plt.colorbar(ticks=list(range(12)), shrink=0.8)
     cbar.set_ticklabels([
         "Empty",
         "Cancer Stem",
         "Cancer Prog",
         "Cancer Senescent", 
-        "CD8+ T",
+        "CD8+ Naive",
+        "CD8+ Activated",
+        "CD8+ Memory",
         "CD4+ Helper",
         "CD4+ Treg",
         "MDSC",

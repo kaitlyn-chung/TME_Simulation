@@ -7,9 +7,15 @@ import numpy as np
 import math
 import random
 
-from . import agents as A
-from .grid_utils import update_diffusion_over_timestep
-from . import params as P
+from ABM_Jul25.agents import (
+    CancerCell, CancerSubtype,
+    CD8TCell, CD8DiffState, CD8ExhaustionState,
+    CD4TCell, CD4DiffState,
+    MDSC,
+    Macrophage, MacSubtype
+    )
+from ABM_Jul25.grid_utils import update_diffusion_over_timestep
+import ABM_Jul25.params as P
 
 
 class SimultaneousActivation:
@@ -50,11 +56,9 @@ class SimultaneousActivation:
                 try:
                     agent.step()
                 except Exception as e:
-                    # If agent step fails, mark as dead
-                    if hasattr(agent, 'alive'):
-                        agent.alive = False
-                    if hasattr(agent, 'pos'):
-                        agent.pos = None
+                    print(f"Agent crashed: {e}")
+                    if hasattr(self.model, "safe_remove_agent"):
+                        self.model.safe_remove_agent(agent)
         
         # Phase 2: every agent "applies" its buffered actions
         for agent in agents_copy:
@@ -62,11 +66,9 @@ class SimultaneousActivation:
                 try:
                     agent.advance()
                 except Exception as e:
-                    # If agent advance fails, mark as dead
-                    if hasattr(agent, 'alive'):
-                        agent.alive = False
-                    if hasattr(agent, 'pos'):
-                        agent.pos = None
+                    print(f"Agent advance crashed: {e}")
+                    if hasattr(self.model, "safe_remove_agent"):
+                        self.model.safe_remove_agent(agent)
 
         # Phase 3: Clean up dead agents
         self.agents = [agent for agent in self.agents if getattr(agent, 'alive', True)]
@@ -156,11 +158,11 @@ class ABM_Model(Model):
         # 7) DataCollector: track number of each agent type over time
         self.datacollector = DataCollector(
             model_reporters={
-                "CancerCellCount": lambda m: m.count_agents(A.CancerCell),
-                "CD8TCount":     lambda m: m.count_agents(A.CD8TCell),
-                "CD4TCount":       lambda m: m.count_agents(A.CD4TCell),
-                "MacCount":       lambda m: m.count_agents(A.Macrophage),
-                "MDSCCount":       lambda m: m.count_agents(A.MDSC)
+                "CancerCellCount": lambda m: m.count_agents(CancerCell),
+                "CD8TCount":     lambda m: m.count_agents(CD8TCell),
+                "CD4TCount":       lambda m: m.count_agents(CD4TCell),
+                "MacCount":       lambda m: m.count_agents(Macrophage),
+                "MDSCCount":       lambda m: m.count_agents(MDSC)
             }
         )
 
@@ -169,7 +171,7 @@ class ABM_Model(Model):
         # ---- Metrics history ----
         self.tumor_count_history = []
         self.cd8_count_history   = []
-        self.cd8_state_counts    = {"effector": [], "prexhausted": [], "terminal": []}
+        self.cd8_state_counts    = {"notexhausted": [], "effector": [], "terminal": []}
         self.mean_exhaustion     = []
         self.mean_pdl1_tumor     = []
         self.mean_pd1_cd8        = []
@@ -186,17 +188,26 @@ class ABM_Model(Model):
         )
         return count
 
-    def count_cell_type(self, agent_type, subtype=None):
-        """
-        Count agents of a specific type and optionally subtype.
-        """
+    def count_cell_type(self, agent_type, **filters):
         count = 0
+
         for agent in self.schedule.agents:
-            if isinstance(agent, agent_type) and getattr(agent, "alive", True):
-                if subtype is None or getattr(agent, "subtype", None) == subtype:
-                    count += 1
+            if not isinstance(agent, agent_type):
+                continue
+            if not getattr(agent, "alive", True):
+                continue
+
+            match = True
+            for attr, value in filters.items():
+                if getattr(agent, attr, None) != value:
+                    match = False
+                    break
+
+            if match:
+                count += 1
+
         return count
-    
+        
     def _next_id(self):
         """Return the next available ID for a new agent."""
         self._current_id += 1
@@ -211,17 +222,15 @@ class ABM_Model(Model):
             agent.alive = False
             if agent in self.schedule.agents:
                 self.schedule.remove(agent)
-        except Exception as e:
-            # If removal fails, just mark as dead
+        except Exception:
             agent.alive = False
-            agent.pos = None
 
     def _collect_metrics(self):
         """Per-tick metric collection. Always runs regardless of axis state."""
 
         # --- Population counts ---
-        n_tumor = self.count_agents(A.CancerCell)
-        n_cd8   = self.count_agents(A.CD8TCell)
+        n_tumor = self.count_agents(CancerCell)
+        n_cd8   = self.count_agents(CD8TCell)
         self.tumor_count_history.append(n_tumor)
         self.cd8_count_history.append(n_cd8)
 
@@ -229,9 +238,9 @@ class ABM_Model(Model):
         counts = [
             n_tumor,
             n_cd8,
-            self.count_agents(A.CD4TCell),
-            self.count_agents(A.Macrophage),
-            self.count_agents(A.MDSC),
+            self.count_agents(CD4TCell),
+            self.count_agents(Macrophage),
+            self.count_agents(MDSC),
         ]
         total = sum(counts)
         if total > 0:
@@ -244,26 +253,30 @@ class ABM_Model(Model):
         # --- PD-1/PD-L1 exhaustion metrics ---
         # Collected regardless of axis state so lists stay the same length,
         # making ON vs OFF comparison plots straightforward.
-        effector = prexhausted = terminal = 0
+        notexhausted = effector = terminal = 0
         pd1_vals        = []
         exhaustion_vals = []
         pdl1_vals       = []
 
         for agent in self.schedule.agents:
-            if isinstance(agent, A.CD8TCell) and agent.alive:
+
+            # Counting CD8s
+            if isinstance(agent, CD8TCell) and agent.alive:
                 pd1_vals.append(agent.pd1)
                 exhaustion_vals.append(agent.exhaustion_level)
-                if agent.exhaustion_level < P.exhaustion_threshold_prex:
+                if agent.exhaustion_state == CD8ExhaustionState.CD8TEFFECTOR:
                     effector += 1
-                elif agent.exhaustion_level < P.exhaustion_threshold_term:
-                    prexhausted += 1
-                else:
+                elif agent.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
                     terminal += 1
-            elif isinstance(agent, A.CancerCell) and agent.alive:
-                pdl1_vals.append(agent.pdl1)
+                elif agent.exhaustion_state == CD8ExhaustionState.CD8TNOTEXHAUSTED:
+                    notexhausted += 1
 
+            # Counting Cancer Cells
+            elif isinstance(agent, CancerCell) and agent.alive:
+                pdl1_vals.append(agent.pdl1)
+        
+        self.cd8_state_counts["notexhausted"].append(notexhausted)
         self.cd8_state_counts["effector"].append(effector)
-        self.cd8_state_counts["prexhausted"].append(prexhausted)
         self.cd8_state_counts["terminal"].append(terminal)
         self.mean_pd1_cd8.append(np.mean(pd1_vals)        if pd1_vals        else 0.0)
         self.mean_exhaustion.append(np.mean(exhaustion_vals) if exhaustion_vals else 0.0)
@@ -311,8 +324,14 @@ class ABM_Model(Model):
         # ---- 5) Data collection and stopping criterion ----
         self.datacollector.collect(self)
         self._collect_metrics()                  # <-- add this line
-        if self.count_agents(A.CancerCell) == 0:
+        if self.count_agents(CancerCell) == 0:
             self.running = False
+
+        for x in range(self.width):
+            for y in range(self.height):
+                occ = self.grid[x][y]
+                if occ and not getattr(occ, "alive", True):
+                    self.grid.remove_agent(occ)
 
     def _recruitment(self):
         dt = self.timestep
@@ -349,29 +368,32 @@ class ABM_Model(Model):
                 # (implicitly, if u < 1.0 it falls into MDSC interval next)
         
                 if u < threshold_cd8:
-                    # recruit CD8
-                    new_cd8 = A.CD8TCell(self._next_id(), self, (x, y))
+                    new_cd8 = CD8TCell(
+                        self._next_id(), self, (x, y),
+                        diff_state=CD8DiffState.CD8TACTIVATED
+                    )
+
                     self.grid.place_agent(new_cd8, (x, y))
                     self.schedule.add(new_cd8)
         
                 elif u < threshold_cd4:
                     # recruit CD4 (20% chance Treg, 80% Thelper)
                     if random.random() < P.TCD4_Treg_frac:
-                        new_cd4 = A.CD4TCell(self._next_id(), self, (x, y), subtype=A.CD4TSubtype.CD4TREG)
+                        new_cd4 = CD4TCell(self._next_id(), self, (x, y), diff_state=CD4DiffState.CD4TREG)
                     else:
-                        new_cd4 = A.CD4TCell(self._next_id(), self, (x, y), subtype=A.CD4TSubtype.CD4THELPER)
+                        new_cd4 = CD4TCell(self._next_id(), self, (x, y), diff_state=CD4DiffState.CD4THELPER)
                     self.grid.place_agent(new_cd4, (x, y))
                     self.schedule.add(new_cd4)
         
                 elif u < threshold_mac:
                     # recruit Macrophage (M1 by default)
-                    new_mac = A.Macrophage(self._next_id(), self, (x, y), subtype=A.MacSubtype.M1)
+                    new_mac = Macrophage(self._next_id(), self, (x, y), subtype=MacSubtype.M1)
                     self.grid.place_agent(new_mac, (x, y))
                     self.schedule.add(new_mac)
         
                 else:
                     # recruit MDSC
-                    new_mdsc = A.MDSC(self._next_id(), self, (x, y))
+                    new_mdsc = MDSC(self._next_id(), self, (x, y))
                     self.grid.place_agent(new_mdsc, (x, y))
                     self.schedule.add(new_mdsc)
 
@@ -514,7 +536,7 @@ class ABM_Model(Model):
                 break
             if not self.grid.is_cell_empty(pos):
                 continue
-            cancer = A.CancerCell(self._next_id(), self, pos)
+            cancer = CancerCell(self._next_id(), self, pos)
             self.grid.place_agent(cancer, pos)
             self.schedule.add(cancer)
             placed += 1
@@ -528,29 +550,29 @@ class ABM_Model(Model):
         # --- b) CD8+ T cells ---
         for _ in range(min(initial_CD8Tcells, len(all_positions))):
             pos = all_positions.pop()
-            tcell = A.CD8TCell(self._next_id(), self, pos)
+            tcell = CD8TCell(self._next_id(), self, pos)
             self.grid.place_agent(tcell, pos)
             self.schedule.add(tcell)
     
         # --- c) CD4+ T cells (20% Treg / 80% Thelper) ---
         for _ in range(min(initial_CD4Tcells, len(all_positions))):
             pos = all_positions.pop()
-            subtype = A.CD4TSubtype.CD4TREG if random.random() < 0.20 \
-                      else A.CD4TSubtype.CD4THELPER
-            tcell = A.CD4TCell(self._next_id(), self, pos, subtype=subtype)
+            diff_state = CD4DiffState.CD4TREG if random.random() < 0.20 \
+                         else CD4DiffState.CD4THELPER
+            tcell = CD4TCell(self._next_id(), self, pos, diff_state=diff_state)
             self.grid.place_agent(tcell, pos)
             self.schedule.add(tcell)
     
         # --- d) MDSCs ---
         for _ in range(min(initial_MDSC, len(all_positions))):
             pos = all_positions.pop()
-            mdsc = A.MDSC(self._next_id(), self, pos)
+            mdsc = MDSC(self._next_id(), self, pos)
             self.grid.place_agent(mdsc, pos)
             self.schedule.add(mdsc)
     
         # --- e) Macrophages (M1 by default) ---
         for _ in range(min(initial_macrophages, len(all_positions))):
             pos = all_positions.pop()
-            mac = A.Macrophage(self._next_id(), self, pos, subtype=A.MacSubtype.M1)
+            mac = Macrophage(self._next_id(), self, pos, subtype=MacSubtype.M1)
             self.grid.place_agent(mac, pos)
             self.schedule.add(mac)
