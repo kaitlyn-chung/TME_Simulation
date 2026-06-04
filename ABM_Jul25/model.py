@@ -75,6 +75,7 @@ class SimultaneousActivation:
 
         self.time += 1
 
+class ABM_Model(Model):
     """
     ABM Model of TME evolution: ref. Zhang et al. (2024).
     - Maintains grids for agents and diffusible fields.
@@ -313,18 +314,6 @@ class SimultaneousActivation:
         # ---- 2) Agent actions: secretion, intracellular ODEs, movement, interactions ----
         self.schedule.step()
 
-        grid_count = 0
-        schedule_count = len(self.schedule.agents)
-
-        for x in range(self.width):
-            for y in range(self.height):
-                if self.grid[x][y] is not None:
-                    grid_count += 1
-
-        print("Grid count:", grid_count)
-        print("Schedule count:", schedule_count)
-        print("Difference:", schedule_count - grid_count)
-
         # ---- 3) Reaction–Diffusion updates for each field (Eq. S1) ----
         self._update_diffusion()
 
@@ -333,10 +322,12 @@ class SimultaneousActivation:
 
         # ---- 5) Data collection and stopping criterion ----
         self.datacollector.collect(self)
-        self._collect_metrics()                  # <-- add this line
+        self._collect_metrics()                 
+        # Stops running if no tumor cells remain alive 
         if self.count_agents(CancerCell) == 0:
             self.running = False
 
+        # Removes dead agents from the grid and schedule
         for x in range(self.width):
             for y in range(self.height):
                 occ = self.grid[x][y]

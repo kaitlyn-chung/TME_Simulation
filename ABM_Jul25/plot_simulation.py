@@ -51,7 +51,7 @@ def print_step_summary(model, step_num, step_time=None):
     ratio_exhausted = cd8_exhausted / cd8_count if cd8_count > 0 else 0
 
     cd4_naive = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4NAIVE)
-    cd4_activated = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
+    cd4_activated = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4ACTIVATED)
     cd4_helper = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
     cd4_treg = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TREG)
     total_cd4 = cd4_naive + cd4_activated + cd4_helper + cd4_treg
@@ -345,10 +345,7 @@ def plot_grid(model, output_dir):
 
             else:
                 grid_map[x, y] = 0
-
-    unique_vals = np.unique(grid_map)
-    print("Grid values present:", unique_vals)
-
+            
     # Define colormap and normalization
     cmap = mcolors.ListedColormap([
         "white",       # 0 empty

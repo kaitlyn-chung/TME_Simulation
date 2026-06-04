@@ -96,8 +96,8 @@ CancerCell_stemMoveProb = 0.8 # probability of stem migration per timestep
 CancerCell_MoveProb = 1 # probability of non-stem migration per timestep
 
 # CD8T Cell parameters
-TCD8_lifespanMean = 1.29*24*3600 # sec = 1.29 days
-TCD8_lifespanSD = 0.15*24*3600 # sec = 0.15 days
+TCD8_lifespanMean = 80*24*3600 # sec = 1.29 days
+TCD8_lifespanSD = 32.397*24*3600 # sec = 0.15 days
 TCD8_moveProb = 1 # migration probability at each timestep
 TCD8_prolif_IL2th_mass = 6.346e-2 # sec * g/L = 63460 sec * ng/mL
 TCD8_prolif_IL2th = TCD8_prolif_IL2th_mass * 1.25e-10 * Avogadro_No / MW_IL2 # sec * molecules / grid
@@ -116,8 +116,8 @@ IC50_NO_TCD8 = 7.5e-10 * 1.25e-10 * Avogadro_No # molecules = 7.5e-10 M
 # CD4T Cell parameters
 init_naive_frac = 0.05 # check this value
 commitment_delay = 24*3600 # sec = 24 hours 
-TCD4_lifespanMean = 1.29*24*3600 # sec = 1.29 days
-TCD4_lifespanSD = 0.15*24*3600 # sec = 0.15 days
+TCD4_lifespanMean = 47*24*3600 # sec = 1.29 days
+TCD4_lifespanSD = 24.29*24*3600 # sec = 0.15 days
 TCD4_Treg_frac = 0.2 # 20% of CD4 is Treg by default
 TCD4_moveProb = 1 # migration probability at each timestep
 TCD4_k_Th_diff_Treg = 2.55e-7 # /sec = 0.022 /day Th -> Treg differentiation rate
@@ -176,5 +176,5 @@ k_exhaustion_rate       = 1e-5        # 1/sec, exhaustion_level tracks signal
 k_exhaustion_recovery   = 5e-7        # 1/sec, partial recovery rate
 PD1_signal_threshold    = 0.05        # signal floor below which recovery activates
 
-exhaustion_threshold_prex = 0.3
+exhaustion_threshold_eff = 0.3
 exhaustion_threshold_term = 0.70

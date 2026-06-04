@@ -177,8 +177,9 @@ class CancerCell(Agent):
         daughter.pdl1 = max(0.0, min(1.0, random.gauss(self.pdl1, P.PDL1_baseline_sd * 0.5)))
         
         # If subtype is PROGENITOR, initialize divisions_done = 0 by default.
-        self.model.grid.place_agent(daughter, new_pos)
-        self.model.schedule.add(daughter)
+        if self.model.grid.is_cell_empty(new_pos):
+            self.model.grid.place_agent(daughter, new_pos)
+            self.model.schedule.add(daughter)
 
     def _migrate(self):
         """
@@ -838,6 +839,7 @@ class Macrophage(Agent):
                 if random.random() < p_kill:
                     target.alive = False
                     self.model.safe_remove_agent(target)
+                    return
 
     def _migrate(self):
         """
