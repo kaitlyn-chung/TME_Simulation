@@ -29,7 +29,7 @@ from ABM_Jul25.plot_simulation import (run_simulation_verbose,
 import warnings
 warnings.filterwarnings("ignore")
 
-pdl1_pd1_axis = False
+pdl1_pd1_axis = True
 
 # Main execution
 def main():

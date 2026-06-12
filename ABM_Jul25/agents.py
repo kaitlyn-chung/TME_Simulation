@@ -428,8 +428,8 @@ class CD8TCell(Agent):
         self.pos = new_pos
 
     def _attempt_kill(self):
-        if self.diff_state == CD8DiffState.CD8TNAIVE:
-            return  # Naive cells do not kill
+        if self.diff_state == CD8DiffState.CD8TNAIVE or self.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
+            return  # Naive and terminally exhausted cells do not kill
         x, y = self.pos
         tcell_neigh_coords = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
         any_pdl1_contact = False
@@ -734,10 +734,9 @@ class Macrophage(Agent):
 
     def step(self):
         x, y = self.pos
-        dt = self.model.timestep
 
         # --- 1) Age‐based death ---
-        self.age += dt
+        self.age += self.model.timestep
         if self.age >= self.lifespan:
             self.model.safe_remove_agent(self)
             return
@@ -752,13 +751,13 @@ class Macrophage(Agent):
         # --- 4) Secretion ---
         if self.subtype == MacSubtype.M1:
             # M1 secretes IL-12 and IFNγ
-            self.model.IL12_secretion_map[x, y] += P.IL12_release * dt
-            self.model.IFNg_secretion_map[x, y] += P.IFNg_release * dt
+            self.model.IL12_secretion_map[x, y] += P.IL12_release * self.model.timestep
+            self.model.IFNg_secretion_map[x, y] += P.IFNg_release * self.model.timestep
         else:
             # M2 secretes VEGFA, TGFβ and IL-10
-            self.model.VEGFA_secretion_map[x, y] += P.VEGFA_release_M2 * dt
-            self.model.TGFb_secretion_map[x, y] += P.TGFb_release_M2 * dt
-            self.model.IL10_secretion_map[x, y] += P.IL10_release_M * dt
+            self.model.VEGFA_secretion_map[x, y] += P.VEGFA_release_M2 * self.model.timestep
+            self.model.TGFb_secretion_map[x, y] += P.TGFb_release_M2 * self.model.timestep
+            self.model.IL10_secretion_map[x, y] += P.IL10_release_M * self.model.timestep
 
         # --- 5) Migration (random walk) ---
         if random.random() < P.Mac_moveProb:
@@ -787,7 +786,7 @@ class Macrophage(Agent):
             alpha_M2 = P.k_Mac_M2_pol * MM_TGFb * MM_IL10
 
             # Convert to probability
-            p_M1_to_M2 = 1.0 - math.exp(-alpha_M2 * dt)
+            p_M1_to_M2 = 1.0 - math.exp(-alpha_M2 * self.model.timestep)
             if random.random() < p_M1_to_M2:
                 self.subtype = MacSubtype.M2
                 # Skip M1 behaviors this tick if switching
@@ -799,7 +798,7 @@ class Macrophage(Agent):
             MM_IFNg = local_IFNg / (local_IFNg + P.EC50_IFNg_M1)
             alpha_M1 = P.k_Mac_M1_pol * MM_IL12 * MM_IFNg
                 
-            p_M2_to_M1 = 1.0 - math.exp(-alpha_M1 * dt)
+            p_M2_to_M1 = 1.0 - math.exp(-alpha_M1 * self.model.timestep)
             if random.random() < p_M2_to_M1:
                 self.subtype = MacSubtype.M1
                 # Skip M2 behaviors this tick if switching

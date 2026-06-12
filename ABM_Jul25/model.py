@@ -344,8 +344,20 @@ class ABM_Model(Model):
         
                 # 1) Compute each subtype's "per‐tick" rate at this (x,y)
                 local_CCL2 = self.CCL2_field[x, y]
-                p_CD8T_rec = 1.0 - math.exp(-P.k_TCD8_rec * dt)
-                p_CD4T_rec = 1.0 - math.exp(-P.k_TCD4_rec * dt)
+                local_IFNg = self.IFNg_field[x, y]
+
+                # T-cell recruitment depends on local IFNg
+                # Use IFNg to scale T cell recruitment
+                IFNg_max = np.max(self.IFNg_field)
+                IFNg_factor = local_IFNg / (IFNg_max + 1e-12) # Local IFNg relative to max in grid
+
+                alpha_CD8 = P.k_TCD8_rec * IFNg_factor
+                alpha_CD4 = P.k_TCD4_rec * IFNg_factor
+
+                p_CD8T_rec = 1.0 - math.exp(-alpha_CD8 * dt)
+                p_CD4T_rec = 1.0 - math.exp(-alpha_CD4 * dt)
+
+                # Macrophage and MDSC recruitment depends on CCL2
                 p_Mac_rec = 1.0 - math.exp(-P.k_Mac_rec * dt)
                 alpha_MDSC = P.k_MDSC_rec_base + P.k_MDSC_rec_max * local_CCL2 / (local_CCL2 + P.EC50_CCL2_MDSC_rec)
                 p_MDSC_rec = 1.0 - math.exp(-alpha_MDSC * dt)
