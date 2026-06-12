@@ -9,6 +9,8 @@
 # outputs
 **/simulation_output/
 **/sensitivity_results/
+**/pdl1_pd1_false/
+**/**
 
 # jupyter notebook checkpoints
 **/.ipynb_checkpoints/
