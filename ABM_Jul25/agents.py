@@ -412,6 +412,27 @@ class CD8TCell(Agent):
         self.divisions_done += 1
         self.last_div_tick = self.model.schedule.time
 
+    def _choose_weighted_position(self, neighbors, field):
+        weights = []
+        cx, cy = self.pos
+
+        for nx, ny in neighbors:
+            if not (0 <= nx < self.model.width and 0 <= ny < self.model.height):
+                weights.append(0.0)
+                continue
+
+            val = field[nx, ny]
+            current = field[cx, cy]
+
+            weights.append(max(0.0, val - current))
+
+        total = sum(weights)
+
+        if total <= 0:
+            return random.choice(neighbors)
+
+        return random.choices(neighbors, weights=weights, k=1)[0]
+
     def _migrate(self):
         """
         Choose a random Moore neighbor (9 neighbors) and move there if empty.
@@ -423,7 +444,9 @@ class CD8TCell(Agent):
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
         if not empty:
             return
-        new_pos = random.choice(empty)
+        
+        new_pos = self._choose_weighted_position(empty, self.model.IFNg_field)
+        
         self.model.grid.move_agent(self, new_pos)
         self.pos = new_pos
 
@@ -630,6 +653,27 @@ class CD4TCell(Agent):
 
         self.divisions_done += 1
         self.last_div_tick = self.model.schedule.time
+   
+    def _choose_weighted_position(self, neighbors, field):
+        weights = []
+        cx, cy = self.pos
+
+        for nx, ny in neighbors:
+            if not (0 <= nx < self.model.width and 0 <= ny < self.model.height):
+                weights.append(0.0)
+                continue
+
+            val = field[nx, ny]
+            current = field[cx, cy]
+
+            weights.append(max(0.0, val - current))
+
+        total = sum(weights)
+
+        if total <= 0:
+            return random.choice(neighbors)
+
+        return random.choices(neighbors, weights=weights, k=1)[0]
 
     def _migrate(self):
         """
@@ -639,10 +683,10 @@ class CD4TCell(Agent):
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
         if not empty:
             return
-        new_pos = random.choice(empty)
+        
+        new_pos = self._choose_weighted_position(empty, self.model.IL2_field)
         self.model.grid.move_agent(self, new_pos)
-        self.pos = new_pos
-
+        self.pos = new_pos 
 
 class MDSC(Agent):
     """
@@ -685,7 +729,28 @@ class MDSC(Agent):
     def advance(self):
         """For SimultaneousActivation compatibility"""
         pass
-            
+    
+    def _choose_weighted_position(self, neighbors, field):
+        weights = []
+        cx, cy = self.pos
+
+        for nx, ny in neighbors:
+            if not (0 <= nx < self.model.width and 0 <= ny < self.model.height):
+                weights.append(0.0)
+                continue
+
+            val = field[nx, ny]
+            current = field[cx, cy]
+
+            weights.append(max(0.0, val - current))
+
+        total = sum(weights)
+
+        if total <= 0:
+            return random.choice(neighbors)
+
+        return random.choices(neighbors, weights=weights, k=1)[0]
+
     def _migrate(self):
         """
         Choose a random Moore neighbor and move there if empty.
@@ -694,7 +759,7 @@ class MDSC(Agent):
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
         if not empty:
             return
-        new_pos = random.choice(empty)
+        new_pos = self._choose_weighted_position(empty, self.model.CCL2_field)
         self.model.grid.move_agent(self, new_pos)
         self.pos = new_pos
 
@@ -839,6 +904,27 @@ class Macrophage(Agent):
                     target.alive = False
                     self.model.safe_remove_agent(target)
                     return
+   
+    def _choose_weighted_position(self, neighbors, field):
+        weights = []
+        cx, cy = self.pos
+
+        for nx, ny in neighbors:
+            if not (0 <= nx < self.model.width and 0 <= ny < self.model.height):
+                weights.append(0.0)
+                continue
+
+            val = field[nx, ny]
+            current = field[cx, cy]
+
+            weights.append(max(0.0, val - current))
+
+        total = sum(weights)
+
+        if total <= 0:
+            return random.choice(neighbors)
+
+        return random.choices(neighbors, weights=weights, k=1)[0]
 
     def _migrate(self):
         """
@@ -848,6 +934,11 @@ class Macrophage(Agent):
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
         if not empty:
             return
-        new_pos = random.choice(empty)
+
+        if MacSubtype.M1:
+            new_pos = self._choose_weighted_position(empty, self.model.IL12_field)
+        elif MacSubtype.M2:
+            new_pos = self._choose_weighted_position(empty, self.model.TGFb_field)
+
         self.model.grid.move_agent(self, new_pos)
         self.pos = new_pos
