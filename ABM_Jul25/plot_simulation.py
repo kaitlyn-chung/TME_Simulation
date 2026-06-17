@@ -479,7 +479,10 @@ def plot_immune_population(csv_file, output_dir, ax=None):
     try:
         df = pd.read_csv(csv_file)
 
-        if ax is None:
+        # Track whether we created the axis
+        created_ax = ax is None
+
+        if created_ax:
             fig, ax = plt.subplots(figsize=(20, 12))
         else:
             fig = ax.figure
@@ -509,7 +512,7 @@ def plot_immune_population(csv_file, output_dir, ax=None):
         ax.legend(ncol=2)
         ax.grid(True, alpha=0.3)
 
-        if ax is None and output_dir:
+        if created_ax and output_dir:
             os.makedirs(output_dir, exist_ok=True)
             plt.savefig(
                 os.path.join(output_dir, 'immune_population_over_time.png'),

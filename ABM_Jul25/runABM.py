@@ -24,6 +24,7 @@ from ABM_Jul25.scenarios import (DEFAULT_SCENARIOS, get_value, confirm_value)
 from ABM_Jul25.plot_simulation import (run_simulation_verbose,
                                         plot_grid,
                                         plot_cytokine_concentrations,
+                                        plot_immune_population,
                                         plot_summary_dashboard,
                                         plot_results_from_csv)
 import warnings
@@ -118,6 +119,11 @@ def main():
     fig4 = plot_results_from_csv(csv_path, output_dir)
     plt.close(fig4)
 
+    # Immune cell populations over time
+    print("  - Immune cell population dynamics...")
+    fig5 = plot_immune_population(csv_path, output_dir)
+    plt.close(fig5)
+
     print("\n" + "="*80)
     print("SIMULATION COMPLETE!")
     print("="*80)
@@ -127,6 +133,7 @@ def main():
     print("  🧪 final_cytokine_concentrations.png - All molecular fields")
     print("  📈 simulation_dashboard.png - Comprehensive summary")
     print("  📋 cell_counts.csv - Raw data for further analysis")
+    print("  📊 immune_population_over_time.png - Immune cell counts over time")
     print("="*80)
     print("Move any files you want to save out of the 'simulation_output/' directory before doing a new run! They will be overridden! ")
     print("="*80)
