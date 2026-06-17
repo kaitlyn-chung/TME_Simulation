@@ -348,20 +348,21 @@ def plot_grid(model, output_dir):
                 grid_map[x, y] = 0
             
     # Define colormap and normalization
-    cmap = mcolors.ListedColormap([
+    colors_list = [
         "white",       # 0 empty
-        "lightgreen",  # 1 Stem
-        "orange",      # 2 Progenitor
-        "red",         # 3 Senescent
-        "blue",        # 4 CD8 naive
-        "mediumblue",  # 5 CD8 activated/memory (darker shade)
-        "navy",        # 6 CD8 memory (even darker shade)
-        "purple",      # 7 CD4 Thelper
-        "pink",        # 8 CD4 Treg
-        "gray",        # 9 MDSC
+        "green",       # 1 Stem
+        "gold",        # 2 Progenitor
+        "orangered",   # 3 Senescent
+        "#ade8f4",     # 4 CD8+ Naive (light blue)
+        "#00b4d8",     # 5 CD8+ Activated (medium blue)
+        "#023e8a",     # 6 CD8+ Memory (dark blue)
+        "#85182a",     # 7 CD4+ Thelper
+        "#461220",     # 8 CD4+ Treg
+        "dimgray",     # 9 MDSC
         "cyan",        # 10 M1
         "magenta"      # 11 M2
-    ])
+    ]
+    cmap = mcolors.ListedColormap(colors_list)
     bounds = np.arange(-0.5, 11.5, 1.0)
     norm = mcolors.BoundaryNorm(bounds, cmap.N)
 
@@ -488,8 +489,8 @@ def plot_immune_population(csv_file, output_dir, ax=None):
             fig = ax.figure
 
         # --- Color palettes (shades) ---
-        cd8_colors = ['#08306b', '#2171b5', '#6baed6', '#c6dbef']  # dark → light blue
-        cd4_colors = ['#67000d', '#cb181d', '#fb6a4a', '#fcbba1']  # dark → light red
+        cd8_colors = ['#03045e', '#023e8a', '#00b4d8', '#ade8f4']  # dark → light blue
+        cd4_colors = ['#461220', '#85182a', '#a11d33', '#e01e37']  # dark → light red
 
         # --- CD8 (blue shades) ---
         ax.plot(df['Step'], df['CD8_Naive'], color=cd8_colors[3], linestyle='-',  label='CD8 Naive')
