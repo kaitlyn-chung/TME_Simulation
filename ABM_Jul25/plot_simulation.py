@@ -5,9 +5,7 @@ Enhanced ABM runner with detailed step-by-step output and monitoring.
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-import seaborn as sns
 import numpy as np
-import random
 import time
 import os
 import pandas as pd
@@ -20,10 +18,11 @@ from ABM_Jul25.agents import (
     Macrophage, MacSubtype
 )
 from ABM_Jul25.model import ABM_Model
-import ABM_Jul25.params as P
 from ABM_Jul25.scenarios import DEFAULT_SCENARIOS
 
-def print_step_summary(model, step_num, step_time=None):
+### Utility functions for printing summaries and saving data
+
+def print_step_summary(counts, step_num, step_time=None):
     """Print detailed summary of current model state."""
     print(f"\n{'='*60}")
     print(f"STEP {step_num}")
@@ -32,35 +31,32 @@ def print_step_summary(model, step_num, step_time=None):
     print(f"{'='*60}")
     
     # Count all cell types and subtypes
-    cancer_stem = model.count_cell_type(CancerCell, subtype=CancerSubtype.STEM)
-    cancer_prog = model.count_cell_type(CancerCell, subtype=CancerSubtype.PROGENITOR)
-    cancer_senes = model.count_cell_type(CancerCell, subtype=CancerSubtype.SENESCENT)
+    cancer_stem = counts['Cancer_Stem']
+    cancer_prog = counts['Cancer_Prog']
+    cancer_senes = counts['Cancer_Senes']
     total_cancer = cancer_stem + cancer_prog + cancer_senes
     
-    cd8_naive = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TNAIVE)
-    cd8_activated = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TACTIVATED)
-    cd8_memory = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TMEMORY)
+    cd8_naive = counts['CD8_Naive']
+    cd8_activated = counts['CD8_Activated']
+    cd8_memory = counts['CD8_Memory']
     cd8_count = cd8_naive + cd8_activated + cd8_memory
 
-    cd8_exhausted = model.count_cell_type(CD8TCell, 
-                    exhaustion_state=CD8ExhaustionState.CD8TTERMINAL)
-    cd8_effector = model.count_cell_type(CD8TCell,
-                    exhaustion_state=CD8ExhaustionState.CD8TEFFECTOR)
-    cd8_notexhausted = model.count_cell_type(CD8TCell,
-                    exhaustion_state=CD8ExhaustionState.CD8TNOTEXHAUSTED)
+    cd8_exhausted = counts['CD8_Exhausted']
+    cd8_effector = counts['CD8_Effector']
+    cd8_notexhausted = counts['CD8_NotExhausted']
     ratio_exhausted = cd8_exhausted / cd8_count if cd8_count > 0 else 0
 
-    cd4_naive = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4NAIVE)
-    cd4_activated = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4ACTIVATED)
-    cd4_helper = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
-    cd4_treg = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TREG)
+    cd4_naive = counts['CD4_Naive']
+    cd4_activated = counts['CD4_Activated']
+    cd4_helper = counts['CD4_Helper']
+    cd4_treg = counts['CD4_Treg']
     total_cd4 = cd4_naive + cd4_activated + cd4_helper + cd4_treg
     
-    m1_count = model.count_cell_type(Macrophage, subtype=MacSubtype.M1)
-    m2_count = model.count_cell_type(Macrophage, subtype=MacSubtype.M2)
+    m1_count = counts['M1']
+    m2_count = counts['M2']
     total_mac = m1_count + m2_count
     
-    mdsc_count = model.count_cell_type(MDSC)
+    mdsc_count = counts['MDSC']
     
     total_immune = cd8_count + total_cd4 + total_mac + mdsc_count
     total_cells = total_cancer + total_immune
@@ -110,7 +106,7 @@ def print_step_summary(model, step_num, step_time=None):
     else:
         helper_treg_ratio = 0
     
-    print(f"KEY RATIOS:")
+    print(f"\nKEY RATIOS:")
     print(f"  Immune:Cancer           = {immune_cancer_ratio:.2f}")
     print(f"  CD8:Cancer              = {cd8_cancer_ratio:.2f}")
     print(f"  Exhausted CD8:Total CD8 = {ratio_exhausted:.2f}")
@@ -130,31 +126,41 @@ def print_molecular_summary(model):
         max_conc = np.max(field)
         print(f"  {mol:5s}: {mean_conc:.2e} ± {std_conc:.2e} (max: {max_conc:.2e})")
 
+def get_cell_counts(model):
+    counts = {}
 
-def save_step_data(model, step_num, output_dir='simulation_output'):
-    """Save step data to files."""
-    
-    # Save cell counts
-    cancer_stem = model.count_cell_type(CancerCell, subtype=CancerSubtype.STEM)
-    cancer_prog = model.count_cell_type(CancerCell, subtype=CancerSubtype.PROGENITOR)
-    cancer_senes = model.count_cell_type(CancerCell, subtype=CancerSubtype.SENESCENT)
-    cd8_naive = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TNAIVE)
-    cd8_activated = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TACTIVATED)
-    cd8_memory = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TMEMORY)
-    cd8_exhausted = model.count_cell_type(
-        CD8TCell,
-        exhaustion_state=CD8ExhaustionState.CD8TTERMINAL
+    counts['Cancer_Stem'] = model.count_cell_type(CancerCell, subtype=CancerSubtype.STEM)
+    counts['Cancer_Prog'] = model.count_cell_type(CancerCell, subtype=CancerSubtype.PROGENITOR)
+    counts['Cancer_Senes'] = model.count_cell_type(CancerCell, subtype=CancerSubtype.SENESCENT)
+
+    counts['CD8_Naive'] = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TNAIVE)
+    counts['CD8_Activated'] = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TACTIVATED)
+    counts['CD8_Memory'] = model.count_cell_type(CD8TCell, diff_state=CD8DiffState.CD8TMEMORY)
+    counts['CD8_Exhausted'] = model.count_cell_type(CD8TCell,
+        exhaustion_state=CD8ExhaustionState.CD8TTERMINAL)
+    counts['CD8_Effector'] = model.count_cell_type(
+        CD8TCell, exhaustion_state=CD8ExhaustionState.CD8TEFFECTOR
+    )
+    counts['CD8_NotExhausted'] = model.count_cell_type(
+        CD8TCell, exhaustion_state=CD8ExhaustionState.CD8TNOTEXHAUSTED
     )
 
-    cd4_naive = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4NAIVE)
-    cd4_activated = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
-    cd4_helper = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
-    cd4_treg = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TREG)
-    m1_count = model.count_cell_type(Macrophage, subtype=MacSubtype.M1)
-    m2_count = model.count_cell_type(Macrophage, subtype=MacSubtype.M2)
-    mdsc_count = model.count_cell_type(MDSC)
+
+    counts['CD4_Naive'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4NAIVE)
+    counts['CD4_Activated'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4ACTIVATED)
+    counts['CD4_Helper'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
+    counts['CD4_Treg'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TREG)
+
+    counts['M1'] = model.count_cell_type(Macrophage, subtype=MacSubtype.M1)
+    counts['M2'] = model.count_cell_type(Macrophage, subtype=MacSubtype.M2)
+    counts['MDSC'] = model.count_cell_type(MDSC)
+
+    return counts
+
+def save_step_data(counts, step_num, output_dir='simulation_output'):
+    """Save step data to files."""
     
-    # Append to CSV file
+    # Save to CSV for easy plotting later
     csv_file = os.path.join(output_dir, "cell_counts.csv")
     if step_num == 0:
         with open(csv_file, 'w') as f:
@@ -162,9 +168,9 @@ def save_step_data(model, step_num, output_dir='simulation_output'):
                     "CD8_Naive,CD8_Activated,CD8_Memory,CD8_Exhausted,"
                     "CD4_Naive,CD4_Activated,CD4_Helper,CD4_Treg,M1,M2,MDSC\n")
     with open(csv_file, 'a') as f:
-        f.write(f"{step_num},{cancer_stem},{cancer_prog},{cancer_senes},"
-                f"{cd8_naive},{cd8_activated},{cd8_memory},{cd8_exhausted},"
-                f"{cd4_naive},{cd4_activated},{cd4_helper},{cd4_treg},{m1_count},{m2_count},{mdsc_count}\n")
+        f.write(f"{step_num},{counts['Cancer_Stem']},{counts['Cancer_Prog']},{counts['Cancer_Senes']},"
+                f"{counts['CD8_Naive']},{counts['CD8_Activated']},{counts['CD8_Memory']},{counts['CD8_Exhausted']},"
+                f"{counts['CD4_Naive']},{counts['CD4_Activated']},{counts['CD4_Helper']},{counts['CD4_Treg']},{counts['M1']},{counts['M2']},{counts['MDSC']}\n")
 
 def run_simulation_verbose(
     scenario='standard',
@@ -235,36 +241,36 @@ def run_simulation_verbose(
     init_time = time.time() - start_time
     print(f"\nModel initialized in {init_time:.3f}s")
 
+    counts = get_cell_counts(model)
     
     # Print initial state
     if print_every <= 1:
-        print_step_summary(model, 0)
+        print_step_summary(counts, 0)
         if show_molecules:
             print_molecular_summary(model)
-    
+
     if save_data:
-        save_step_data(model, 0)
-    
+        save_step_data(counts, 0)
+
     # Run simulation
     total_step_time = 0
     for step in range(1, steps + 1):
         step_start = time.time()
         
         model.step()
-        
         step_time = time.time() - step_start
         total_step_time += step_time
-        
-        # Print progress
+
+        counts = get_cell_counts(model)
+
         if step % print_every == 0:
-            print_step_summary(model, step, step_time)
+            print_step_summary(counts, step, step_time)
             if show_molecules:
                 print_molecular_summary(model)
-        
-        # Save data
+
         if save_data:
-            save_step_data(model, step)
-        
+            save_step_data(counts, step)
+
         # Check if simulation should stop
         if not model.running:
             print(f"\n{'!'*60}")
@@ -284,10 +290,88 @@ def run_simulation_verbose(
     print(f"Average time per step: {avg_step_time:.3f}s")
     print(f"Steps completed: {step}/{steps}")
     print(f"Final model state:")
-    print_step_summary(model, step)
-    
+    counts = get_cell_counts(model)
+    print_step_summary(counts, step)
+
     return model
 
+### Visualization functions
+
+COLOR_MAP = {
+    # cancer
+    "Cancer_Stem": "green",
+    "Cancer_Prog": "gold",
+    "Cancer_Senes": "orangered",
+
+    # CD8 (blue gradient)
+    "CD8_Naive": "#ade8f4",
+    "CD8_Activated": "#00b4d8",
+    "CD8_Memory": "#023e8a",
+    "CD8_Exhausted": "#03045e",
+
+    # CD4 (red gradient)
+    "CD4_Naive": "#fc9ca2",
+    "CD4_Activated": "#f92432",
+    "CD4_Helper": "#9f040e",
+    "CD4_Treg": "#500207",
+
+    # myeloid
+    "MDSC": "dimgray",
+    "M1": "cyan",
+    "M2": "magenta",
+}
+
+GRID_COLORS = [
+    "white",                          # 0 empty
+    COLOR_MAP["Cancer_Stem"],         # 1
+    COLOR_MAP["Cancer_Prog"],         # 2
+    COLOR_MAP["Cancer_Senes"],        # 3
+    COLOR_MAP["CD8_Naive"],           # 4
+    COLOR_MAP["CD8_Activated"],       # 5
+    COLOR_MAP["CD8_Memory"],          # 6
+    COLOR_MAP["CD4_Helper"],          # 7
+    COLOR_MAP["CD4_Treg"],            # 8
+    COLOR_MAP["MDSC"],                # 9
+    COLOR_MAP["M1"],                  # 10
+    COLOR_MAP["M2"],                  # 11
+]
+
+def encode_grid(model):
+    grid_map = np.zeros((model.width, model.height), dtype=int)
+
+    for x in range(model.width):
+        for y in range(model.height):
+            cell = model.grid[x][y]
+
+            if cell is None:
+                continue
+            elif isinstance(cell, CancerCell):
+                grid_map[x, y] = {
+                    CancerSubtype.STEM: 1,
+                    CancerSubtype.PROGENITOR: 2,
+                    CancerSubtype.SENESCENT: 3
+                }[cell.subtype]
+
+            elif isinstance(cell, CD8TCell):
+                grid_map[x, y] = {
+                    CD8DiffState.CD8TNAIVE: 4,
+                    CD8DiffState.CD8TACTIVATED: 5,
+                    CD8DiffState.CD8TMEMORY: 6
+                }[cell.diff_state]
+
+            elif isinstance(cell, CD4TCell):
+                if cell.diff_state == CD4DiffState.CD4THELPER:
+                    grid_map[x, y] = 7
+                elif cell.diff_state == CD4DiffState.CD4TREG:
+                    grid_map[x, y] = 8
+
+            elif isinstance(cell, MDSC):
+                grid_map[x, y] = 9
+
+            elif isinstance(cell, Macrophage):
+                grid_map[x, y] = 10 if cell.subtype == MacSubtype.M1 else 11
+
+    return grid_map
 
 def plot_grid(model, output_dir):
     """
@@ -305,65 +389,11 @@ def plot_grid(model, output_dir):
       8 = Macrophage (M1)
       9 = Macrophage (M2)
     """
-    width, height = model.width, model.height
-    grid_map = np.zeros((width, height), dtype=int)
+    grid_map = encode_grid(model)
 
-    for x in range(width):
-        for y in range(height):
-            occupant = model.grid[x][y]
-            if occupant is None:
-                grid_map[x, y] = 0
-            elif isinstance(occupant, CancerCell):
-                if occupant.subtype == CancerSubtype.STEM:
-                    grid_map[x, y] = 1
-                elif occupant.subtype == CancerSubtype.PROGENITOR:
-                    grid_map[x, y] = 2
-                else:  # SENESCENT
-                    grid_map[x, y] = 3
-
-            elif isinstance(occupant, CD8TCell):
-                if occupant.diff_state == CD8DiffState.CD8TNAIVE:
-                    grid_map[x, y] = 4
-                elif occupant.diff_state == CD8DiffState.CD8TACTIVATED:
-                    grid_map[x, y] = 5
-                elif occupant.diff_state == CD8DiffState.CD8TMEMORY:
-                    grid_map[x, y] = 6
-
-            elif isinstance(occupant, CD4TCell):
-                if occupant.diff_state == CD4DiffState.CD4THELPER:
-                    grid_map[x, y] = 7
-                elif occupant.diff_state == CD4DiffState.CD4TREG:
-                    grid_map[x, y] = 8
-
-            elif isinstance(occupant, MDSC):
-                grid_map[x, y] = 9
-
-            elif isinstance(occupant, Macrophage):
-                if occupant.subtype == MacSubtype.M1:
-                    grid_map[x, y] = 10
-                else:  # M2
-                    grid_map[x, y] = 11
-
-            else:
-                grid_map[x, y] = 0
-            
     # Define colormap and normalization
-    colors_list = [
-        "white",       # 0 empty
-        "green",       # 1 Stem
-        "gold",        # 2 Progenitor
-        "orangered",   # 3 Senescent
-        "#ade8f4",     # 4 CD8+ Naive (light blue)
-        "#00b4d8",     # 5 CD8+ Activated (medium blue)
-        "#023e8a",     # 6 CD8+ Memory (dark blue)
-        "#85182a",     # 7 CD4+ Thelper
-        "#461220",     # 8 CD4+ Treg
-        "dimgray",     # 9 MDSC
-        "cyan",        # 10 M1
-        "magenta"      # 11 M2
-    ]
-    cmap = mcolors.ListedColormap(colors_list)
-    bounds = np.arange(-0.5, 11.5, 1.0)
+    cmap = mcolors.ListedColormap(GRID_COLORS)
+    bounds = np.arange(-0.5, len(GRID_COLORS)-0.5, 1.0)
     norm = mcolors.BoundaryNorm(bounds, cmap.N)
 
     plt.figure(figsize=(10, 8))
@@ -473,13 +503,24 @@ def plot_cytokine_concentrations(model, output_dir):
     
     return fig
 
-def plot_immune_population(csv_file, output_dir, ax=None):
+def plot_tcells(ax, df):
+    # CD8
+    ax.plot(df['Step'], df['CD8_Naive'], color=COLOR_MAP['CD8_Naive'], label='CD8 Naive')
+    ax.plot(df['Step'], df['CD8_Activated'], color=COLOR_MAP['CD8_Activated'], linestyle='--', label='CD8 Activated')
+    ax.plot(df['Step'], df['CD8_Memory'], color=COLOR_MAP['CD8_Memory'], linestyle=':', label='CD8 Memory')
+    ax.plot(df['Step'], df['CD8_Exhausted'], color=COLOR_MAP['CD8_Exhausted'], linestyle='-.', label='CD8 Exhausted')
+
+    # CD4
+    ax.plot(df['Step'], df['CD4_Naive'], color=COLOR_MAP['CD4_Naive'], label='CD4 Naive')
+    ax.plot(df['Step'], df['CD4_Activated'], color=COLOR_MAP['CD4_Activated'], linestyle='--', label='CD4 Activated')
+    ax.plot(df['Step'], df['CD4_Helper'], color=COLOR_MAP['CD4_Helper'], linestyle=':', label='CD4 Helper')
+    ax.plot(df['Step'], df['CD4_Treg'], color=COLOR_MAP['CD4_Treg'], linestyle='-.', label='CD4 Treg')
+
+def plot_immune_population(df, output_dir=None, ax=None):
     """
     Plot CD8 and CD4 T-cell populations with differentiated states using color shades.
     """
     try:
-        df = pd.read_csv(csv_file)
-
         # Track whether we created the axis
         created_ax = ax is None
 
@@ -488,21 +529,7 @@ def plot_immune_population(csv_file, output_dir, ax=None):
         else:
             fig = ax.figure
 
-        # --- Color palettes (shades) ---
-        cd8_colors = ['#03045e', '#023e8a', '#00b4d8', '#ade8f4']  # dark → light blue
-        cd4_colors = ['#461220', '#85182a', '#a11d33', '#e01e37']  # dark → light red
-
-        # --- CD8 (blue shades) ---
-        ax.plot(df['Step'], df['CD8_Naive'], color=cd8_colors[3], linestyle='-',  label='CD8 Naive')
-        ax.plot(df['Step'], df['CD8_Activated'], color=cd8_colors[2], linestyle='--', label='CD8 Activated')
-        ax.plot(df['Step'], df['CD8_Memory'], color=cd8_colors[1], linestyle=':', label='CD8 Memory')
-        ax.plot(df['Step'], df['CD8_Exhausted'], color=cd8_colors[0], linestyle='-.', label='CD8 Exhausted')
-
-        # --- CD4 (red shades) ---
-        ax.plot(df['Step'], df['CD4_Naive'], color=cd4_colors[3], linestyle='-', label='CD4 Naive')
-        ax.plot(df['Step'], df['CD4_Activated'], color=cd4_colors[2], linestyle='--', label='CD4 Activated')
-        ax.plot(df['Step'], df['CD4_Helper'], color=cd4_colors[1], linestyle=':', label='CD4 Helper')
-        ax.plot(df['Step'], df['CD4_Treg'], color=cd4_colors[0], linestyle='-.', label='CD4 Treg')
+        plot_tcells(ax, df)
 
         # Labels
         ax.set_xlabel('Step')
@@ -535,57 +562,15 @@ def plot_summary_dashboard(model, output_dir):
     
     # 1. Cell grid (top left)
     ax1 = plt.subplot(2, 4, 1)
-    width, height = model.width, model.height
-    grid_map = np.zeros((width, height), dtype=int)
 
-    for x in range(width):
-        for y in range(height):
-            occupant = model.grid[x][y]
-            if occupant is None:
-                grid_map[x, y] = 0
-            elif isinstance(occupant, CancerCell):
-                if occupant.subtype == CancerSubtype.STEM:
-                    grid_map[x, y] = 1
-                elif occupant.subtype == CancerSubtype.PROGENITOR:
-                    grid_map[x, y] = 2
-                else:
-                    grid_map[x, y] = 3
-            elif isinstance(occupant, CD8TCell):
-                grid_map[x, y] = 4
-            elif isinstance(occupant, CD4TCell):
-                if occupant.diff_state == CD4DiffState.CD4THELPER:
-                    grid_map[x, y] = 5
-                else:
-                    grid_map[x, y] = 6
-            elif isinstance(occupant, MDSC):
-                grid_map[x, y] = 7
-            elif isinstance(occupant, Macrophage):
-                if occupant.subtype == MacSubtype.M1:
-                    grid_map[x, y] = 8
-                else:
-                    grid_map[x, y] = 9
+    grid_map = encode_grid(model)
 
-    cmap = mcolors.ListedColormap([
-        "white", "lightgreen", "orange", "red", "blue", 
-        "purple", "pink", "gray", "cyan", "magenta"
-    ])
-    bounds = np.arange(-0.5, 10.5, 1.0)
+    cmap = mcolors.ListedColormap(GRID_COLORS)
+    bounds = np.arange(-0.5, len(GRID_COLORS)-0.5, 1.0)
     norm = mcolors.BoundaryNorm(bounds, cmap.N)
-    
+
     im1 = ax1.imshow(grid_map.T, cmap=cmap, norm=norm, origin="lower")
-    cbar = plt.colorbar(im1, ax=ax1, ticks=np.arange(10), shrink=0.8)
-    cbar.set_ticklabels([
-        "Empty",
-        "Cancer Stem",
-        "Cancer Prog",
-        "Cancer Senescent", 
-        "CD8+ T",
-        "CD4+ Helper",
-        "CD4+ Treg",
-        "MDSC",
-        "M1 Mac",
-        "M2 Mac"
-    ])
+
     ax1.set_title('Final Cell Distribution', fontweight='bold')
     ax1.set_xlabel('X Position')
     ax1.set_ylabel('Y Position')
@@ -648,7 +633,6 @@ def plot_results_from_csv(csv_file="cell_counts.csv", output_dir="simulation_out
     """Plot results from saved CSV data and save to output_dir."""
     # Read CSV
     try:
-        import pandas as pd
         df = pd.read_csv(csv_file)
 
         fig = plt.figure(figsize=(15, 10))
@@ -666,7 +650,7 @@ def plot_results_from_csv(csv_file="cell_counts.csv", output_dir="simulation_out
 
         # Immune cells subplot
         ax2 = fig.add_subplot(2, 2, 2)
-        plot_immune_population(csv_file, output_dir, ax=ax2)
+        plot_immune_population(df, output_dir, ax=ax2)
 
         # Myeloid cells subplot
         ax3 = fig.add_subplot(2, 2, 3)

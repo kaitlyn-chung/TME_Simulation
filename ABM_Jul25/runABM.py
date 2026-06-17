@@ -4,9 +4,9 @@ Enhanced ABM runner with detailed step-by-step output and monitoring.
 """
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-import seaborn as sns
 import numpy as np
 import random
+import pandas as pd
 import time
 import os
 
@@ -19,8 +19,7 @@ from ABM_Jul25.agents import (
     Macrophage, MacSubtype
 )
 from ABM_Jul25.model import ABM_Model
-import ABM_Jul25.params as P
-from ABM_Jul25.scenarios import (DEFAULT_SCENARIOS, get_value, confirm_value)
+from ABM_Jul25.scenarios import (DEFAULT_SCENARIOS, get_value)
 from ABM_Jul25.plot_simulation import (run_simulation_verbose,
                                         plot_grid,
                                         plot_cytokine_concentrations,
@@ -52,11 +51,11 @@ def main():
                 f"{params['initial_CD8Tcells']+params['initial_CD4Tcells']} T cells, "
                 f"{params['steps']} steps")
     
-    scenario_names = list(DEFAULT_SCENARIOS.keys())
-    choice = input('Which scenario would you like to choose? ')
+    scenario_names = [s.lower() for s in DEFAULT_SCENARIOS.keys()]
+    choice = input('Which scenario would you like to choose? ').strip()
     while choice not in scenario_names:
-        print('Invalid scenario name! Check your spelling and case senstiivity. ')
-        choice = input('Which scenario would you like to choose? ')
+        print('Invalid scenario name! Check your spelling and case sensitivity. ')
+        choice = input('Which scenario would you like to choose? ').strip().lower()
 
     # Using a custom scenario, prompt the user for initializations
     if choice == 'custom':
@@ -101,28 +100,34 @@ def main():
     # Final cell distribution
     print("  - Final cell distribution grid...")
     fig1 = plot_grid(model, output_dir)
-    plt.close(fig1)
+    if fig1 is not None:
+        plt.close(fig1)
     
     # All cytokine concentrations
     print("  - Cytokine concentration fields...")
     fig2 = plot_cytokine_concentrations(model, output_dir)
-    plt.close(fig2)
+    if fig2 is not None:
+        plt.close(fig2)
     
     # Sumamry dashboard
     print("  - Summary dashboard...")
     fig3 = plot_summary_dashboard(model, output_dir)
-    plt.close(fig3)
+    if fig3 is not None:
+        plt.close(fig3)
     
     # Evolution of population growth
     print("  - Population dynamics...")
     csv_path = os.path.join(output_dir, "cell_counts.csv")
     fig4 = plot_results_from_csv(csv_path, output_dir)
-    plt.close(fig4)
+    if fig4 is not None:
+        plt.close(fig4)
 
+    df = pd.read_csv(csv_path)
     # Immune cell populations over time
     print("  - Immune cell population dynamics...")
-    fig5 = plot_immune_population(csv_path, output_dir)
-    plt.close(fig5)
+    fig5 = plot_immune_population(df, output_dir)
+    if fig5 is not None:
+        plt.close(fig5)
 
     print("\n" + "="*80)
     print("SIMULATION COMPLETE!")
