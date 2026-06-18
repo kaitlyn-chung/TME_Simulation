@@ -567,12 +567,10 @@ class ABM_Model(Model):
             self.grid.place_agent(tcell, pos)
             self.schedule.add(tcell)
     
-        # --- c) CD4+ T cells (20% Treg / 80% Thelper) ---
+        # --- c) CD4+ T cells ---
         for _ in range(min(initial_CD4Tcells, len(all_positions))):
             pos = all_positions.pop()
-            diff_state = CD4DiffState.CD4TREG if random.random() < 0.20 \
-                         else CD4DiffState.CD4THELPER
-            tcell = CD4TCell(self._next_id(), self, pos, diff_state=diff_state)
+            tcell = CD4TCell(self._next_id(), self, pos)
             self.grid.place_agent(tcell, pos)
             self.schedule.add(tcell)
     
