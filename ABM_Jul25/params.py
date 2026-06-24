@@ -96,16 +96,19 @@ CancerCell_stemMoveProb = 0.8 # probability of stem migration per timestep
 CancerCell_MoveProb = 1 # probability of non-stem migration per timestep
 
 # CD8T Cell parameters
+cd8_commitment_delay = 8*24*3600 # sec = 8 days delay from activation to memory commitment, clonal expansion
+p_memory_diff = 0.05 # probability of differentiating into memory T cell after commitment delay
 TCD8_lifespanMean = 80*24*3600 # sec = 1.29 days
 TCD8_lifespanSD = 32.397*24*3600 # sec = 0.15 days
 TCD8_moveProb = 1 # migration probability at each timestep
 TCD8_prolif_IL2th_mass = 6.346e-2 # sec * g/L = 63460 sec * ng/mL
 TCD8_prolif_IL2th = TCD8_prolif_IL2th_mass * 1.25e-10 * Avogadro_No / MW_IL2 # sec * molecules / grid
 TCD8_div_Interval = 43200 # sec = 12h
-TCD8_div_Limit = 4 # division limit is 4 times
+TCD8_div_limit_effector = 8 # higher division limit for clonal expansion
+TCD8_div_limit_memory = 4
 k_TCD8_killing = 1.16e-5 # cell/sec = 1 cell/day
-k_TCR_activation = 1e-5 # 1/(molecules/grid * sec), scales with IFNg and IL-2 fields
-k_TCD8_activation = 1e-5 # 1/sec, rate of becoming fully active once TCR signal is above threshold
+k_TCR_activation = 1e-5 # 1/(molecules/grid * sec), scales with IFNg and IL-2 fields, used for both CD8 and CD4
+k_cytokine_CD8 = 1e-5 # 1/sec, rate of becoming fully active once TCR signal is above threshold
 
 # Coefficients in Hill function of TCD8 inhibition
 k_hill_MDSC_TCD8 = 2 # Half‐maximal inhibition = 2 MDSCs in neighborhood
@@ -115,7 +118,8 @@ IC50_NO_TCD8 = 7.5e-10 * 1.25e-10 * Avogadro_No # molecules = 7.5e-10 M
 
 # CD4T Cell parameters
 init_naive_frac = 0.05 # check this value
-commitment_delay = 24*3600 # sec = 24 hours 
+cd4_commitment_delay = 3*24*3600 # sec = 3 days
+k_cytokine_CD4 = 1e-5 # 1/sec, rate of becoming fully active once TCR signal is above threshold
 TCD4_lifespanMean = 47*24*3600 # sec = 1.29 days
 TCD4_lifespanSD = 24.29*24*3600 # sec = 0.15 days
 TCD4_Treg_frac = 0.2 # 20% of CD4 is Treg by default
@@ -128,9 +132,8 @@ EC50_Arg1_Treg = 1.9e+11 # molecules = 22.1 mU Arg1
 k_Arg1_Treg_div = 2.43e-05 # /sec = 2.1 times /day
 
 # MDSC parameters
-#MDSC_lifespanMean = 5.7888e+6 # sec = 67 days
-MDSC_lifespanMean = 5.7888e+5 # sec = 67 days
-MDSC_lifespanSD = 8.64e+4 # sec = 1 day
+MDSC_lifespanMean = 67*24*3600 # sec = 67 days
+MDSC_lifespanSD = 1*24*3600 # sec = 1 day
 MDSC_moveProb = 0.1 # migration probability at each timestep
 
 # Macrophage parameters
