@@ -267,7 +267,7 @@ class ABM_Model(Model):
                     effector += 1
                 elif agent.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
                     terminal += 1
-                elif agent.exhaustion_state == CD8ExhaustionState.CD8TNOTEXHAUSTED:
+                elif agent.exhaustion_state == CD8ExhaustionState.CD8TPD1NEG:
                     notexhausted += 1
 
             # Counting Cancer Cells
@@ -563,16 +563,16 @@ class ABM_Model(Model):
         # --- b) CD8+ T cells ---
         for _ in range(min(initial_CD8Tcells, len(all_positions))):
             pos = all_positions.pop()
-            tcell = CD8TCell(self._next_id(), self, pos)
-            self.grid.place_agent(tcell, pos)
-            self.schedule.add(tcell)
+            cd8tcell = CD8TCell(self._next_id(), self, pos)
+            self.grid.place_agent(cd8tcell, pos)
+            self.schedule.add(cd8tcell)
     
         # --- c) CD4+ T cells ---
         for _ in range(min(initial_CD4Tcells, len(all_positions))):
             pos = all_positions.pop()
-            tcell = CD4TCell(self._next_id(), self, pos)
-            self.grid.place_agent(tcell, pos)
-            self.schedule.add(tcell)
+            cd4tcell = CD4TCell(self._next_id(), self, pos)
+            self.grid.place_agent(cd4tcell, pos)
+            self.schedule.add(cd4tcell)
     
         # --- d) MDSCs ---
         for _ in range(min(initial_MDSC, len(all_positions))):
