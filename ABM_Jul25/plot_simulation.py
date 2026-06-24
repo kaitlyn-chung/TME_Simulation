@@ -43,7 +43,7 @@ def print_step_summary(counts, step_num, step_time=None):
 
     cd8_exhausted = counts['CD8_Exhausted']
     cd8_effector = counts['CD8_Effector']
-    cd8_notexhausted = counts['CD8_NotExhausted']
+    cd8_pd1neg = counts['CD8_PD1Neg']
     ratio_exhausted = cd8_exhausted / cd8_count if cd8_count > 0 else 0
 
     cd4_naive = counts['CD4_Naive']
@@ -73,7 +73,7 @@ def print_step_summary(counts, step_num, step_time=None):
     print(f"    │   ├─ Activated:  {cd8_activated:3d}")
     print(f"    │   ├─ Memory:     {cd8_memory:3d}")
     print(f"    │   └─ Exhaustion States:")
-    print(f"    │      ├─ Not Exhausted: {cd8_notexhausted:3d}")
+    print(f"    │      ├─ PD1 neg:    {cd8_pd1neg:3d}")
     print(f"    │      ├─ Effector:   {cd8_effector:3d}")
     print(f"    │      └─ Exhausted:  {cd8_exhausted:3d}")
     print(f"    ├─ CD4+ T:         {total_cd4:3d}")
@@ -141,13 +141,12 @@ def get_cell_counts(model):
     counts['CD8_Effector'] = model.count_cell_type(
         CD8TCell, exhaustion_state=CD8ExhaustionState.CD8TEFFECTOR
     )
-    counts['CD8_NotExhausted'] = model.count_cell_type(
-        CD8TCell, exhaustion_state=CD8ExhaustionState.CD8TNOTEXHAUSTED
+    counts['CD8_PD1Neg'] = model.count_cell_type(
+        CD8TCell, exhaustion_state=CD8ExhaustionState.CD8TPD1NEG
     )
 
-
-    counts['CD4_Naive'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4NAIVE)
-    counts['CD4_Activated'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4ACTIVATED)
+    counts['CD4_Naive'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TNAIVE)
+    counts['CD4_Activated'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TACTIVATED)
     counts['CD4_Helper'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
     counts['CD4_Treg'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TREG)
 
