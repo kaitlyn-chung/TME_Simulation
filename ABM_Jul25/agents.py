@@ -222,7 +222,7 @@ class CD8DiffState(Enum):
     CD8TMEMORY = auto()
 
 class CD8ExhaustionState(Enum):
-    CD8TNOTEXHAUSTED = auto()
+    CD8TPD1NEG = auto()
     CD8TEFFECTOR = auto()
     CD8TTERMINAL = auto()
 
@@ -249,7 +249,7 @@ class CD8TCell(Agent):
         
         # If diff_state is naive, exhaustion_state should be not exhausted; otherwise, default to EFFECTOR if not provided
         if self.diff_state == CD8DiffState.CD8TNAIVE:
-            self.exhaustion_state = CD8ExhaustionState.CD8TNOTEXHAUSTED
+            self.exhaustion_state = CD8ExhaustionState.CD8TPD1NEG
         else:
             self.exhaustion_state = CD8ExhaustionState.CD8TEFFECTOR
         
@@ -313,15 +313,18 @@ class CD8TCell(Agent):
             # Normalize tumor signal (0 → 1)
             tumor_signal = N_tumor / len(neighbors) if neighbors else 0.0
 
+            if N_tumor == 0:
+                return
+
             local_IL2 = self.model.IL2_field[x, y]
+            mean_IL2 = np.mean(self.model.IL2_field) + 1e-12
+
+            IL2_signal = local_IL2 / (local_IL2 + mean_IL2)
             
             # Activation probability (TCR and IL2-driven)
-            p_activate = 1 - math.exp(
-                -self.model.timestep * (
-                    P.k_TCR_activation * tumor_signal +
-                    P.k_TCD8_activation * local_IL2
-                )
-            )
+            combined_signal = tumor_signal * (1 + P.k_cytokine_CD8 * IL2_signal)
+
+            p_activate = 1 - math.exp( -self.model.timestep * P.k_TCR_activation * combined_signal)
 
             if random.random() < p_activate:
                 self.diff_state = CD8DiffState.CD8TACTIVATED
@@ -332,8 +335,11 @@ class CD8TCell(Agent):
         if self.diff_state == CD8DiffState.CD8TACTIVATED:
             self.activation_age += self.model.timestep
 
-            if self.activation_age > P.commitment_delay:
-                self.diff_state = CD8DiffState.CD8TMEMORY 
+            if self.activation_age > P.cd8_commitment_delay:
+                if random.random() < P.p_memory_diff:
+                    self.diff_state = CD8DiffState.CD8TMEMORY
+                else: # If not being committed to memory, remove cell to represent activation-induced cell death of non-memory precursors
+                    self.model.safe_remove_agent(self)
 
         # ---- 2) Accumulate IL-2 exposure and attempt division ----
         local_IL2 = self.model.IL2_field[x, y]  # (molecules/µm³)
@@ -344,20 +350,51 @@ class CD8TCell(Agent):
             self.pd1 = min(1.0, self.pd1 + P.k_PD1_upregulation * local_IL2 * self.model.timestep)
             # Slow decay back toward baseline when unstimulated
             self.pd1 = max(P.PD1_baseline, self.pd1 - P.k_PD1_decay * self.model.timestep)
+            self.exhaustion_level += P.k_exhaustion_rate * (
+                self.exhaustion_signal - self.exhaustion_level
+            ) * self.model.timestep
+
+        self.exhaustion_level = max(0.0, min(1.0, self.exhaustion_level))
+        self._update_exhaustion_state()
 
         # Check if we have enough IL-2 exposure AND enough time since last division
         # AND haven't exceeded division limit.
         current_tick = self.model.schedule.time
         ticks_since_last_div = current_tick - self.last_div_tick
 
-        if (self.IL2_accum >= P.TCD8_prolif_IL2th
-            and ticks_since_last_div >= P.TCD8_div_Interval
-            and self.divisions_done < P.TCD8_div_Limit):
-            # Attempt to divide
-            self._divide_if_possible()
+        if self.exhaustion_state != CD8ExhaustionState.CD8TTERMINAL:
+            
+            # Changes to the IL2 threshold for divison
+            if self.diff_state == CD8DiffState.CD8TACTIVATED:
+                IL2_threshold = P.TCD8_prolif_IL2th * 0.5  # easier to divide
+            elif self.diff_state == CD8DiffState.CD8TMEMORY:
+                IL2_threshold = P.TCD8_prolif_IL2th * 0.75
+            else:
+                IL2_threshold = P.TCD8_prolif_IL2th
+            
+            # Changes threshold based on exhaustion level, more exhausted = higher threshold
+            IL2_threshold *= (1 + self.exhaustion_level)
 
-        # ---- 3) Secrete IL-2 at rate IL2_release for dt seconds ----
-        if self.diff_state != CD8DiffState.CD8TNAIVE:
+            if self.diff_state == CD8DiffState.CD8TACTIVATED:
+                max_div = P.TCD8_div_limit_effector
+            elif self.diff_state == CD8DiffState.CD8TMEMORY:
+                max_div = P.TCD8_div_limit_memory
+            else:
+                max_div = 0 # Cannot divide if not activated or memory cells
+
+            if (self.IL2_accum >= IL2_threshold
+                and ticks_since_last_div >= P.TCD8_div_Interval
+                and self.divisions_done < max_div):
+
+                # Attempt to divide
+                self._divide_if_possible()
+
+        # ---- 3) Secrete IL-2 at rate IL2_release for dt seconds depending on differentiation state ----
+        if self.diff_state == CD8DiffState.CD8TNAIVE:
+            pass
+        elif self.diff_state == CD8DiffState.CD8TMEMORY:
+            self.model.IL2_secretion_map[x, y] += 0.25 * P.IL2_release * self.model.timestep
+        else:
             self.model.IL2_secretion_map[x, y] += P.IL2_release * self.model.timestep
 
         # ---- 4) Migration (random walk) ----
@@ -373,11 +410,11 @@ class CD8TCell(Agent):
         pass
 
     def _update_exhaustion_state(self):
-        if self.exhaustion_level < P.exhaustion_threshold_eff:
-            self.exhaustion_state = CD8ExhaustionState.CD8TNOTEXHAUSTED
-        elif self.exhaustion_level > P.exhaustion_threshold_eff and self.exhaustion_level < P.exhaustion_threshold_term:
+        if self.exhaustion_level <= P.exhaustion_threshold_eff:
+            self.exhaustion_state = CD8ExhaustionState.CD8TPD1NEG
+        elif self.exhaustion_level <= P.exhaustion_threshold_term:
             self.exhaustion_state = CD8ExhaustionState.CD8TEFFECTOR
-        elif self.exhaustion_level > P.exhaustion_threshold_term:
+        else:
             self.exhaustion_state = CD8ExhaustionState.CD8TTERMINAL
 
     def _divide_if_possible(self):
@@ -386,6 +423,9 @@ class CD8TCell(Agent):
         update division count & last_div_tick.  If no empty neighbor, do nothing
         (contact inhibition)—the exposure remains accumulated (could divide next tick).
         """
+        if self.diff_state == CD8DiffState.CD8TNAIVE:
+            return # Naive cells do not divide until activated
+        
         neighbors = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
         if not empty:
@@ -435,7 +475,8 @@ class CD8TCell(Agent):
 
     def _migrate(self):
         """
-        Choose a random Moore neighbor (9 neighbors) and move there if empty.
+        Move towards IFNg field if high concentration, otherwise random:
+         If no empty neighbors, do not move.
         """
         if self.pos is None:
             return
@@ -451,8 +492,9 @@ class CD8TCell(Agent):
         self.pos = new_pos
 
     def _attempt_kill(self):
-        if self.diff_state == CD8DiffState.CD8TNAIVE or self.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
-            return  # Naive and terminally exhausted cells do not kill
+        if self.diff_state == CD8DiffState.CD8TNAIVE:
+            return  # Naive cells do not kill
+
         x, y = self.pos
         tcell_neigh_coords = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
         any_pdl1_contact = False
@@ -493,10 +535,6 @@ class CD8TCell(Agent):
                         any_pdl1_contact = True
                     self.exhaustion_signal = min(1.0,
                         self.exhaustion_signal + P.k_PD1_signaling * pdl1_signal * self.model.timestep)
-                    self.exhaustion_level += P.k_exhaustion_rate * (
-                        self.exhaustion_signal - self.exhaustion_level) * self.model.timestep
-                    self.exhaustion_level = max(0.0, min(1.0, self.exhaustion_level))
-                    self._update_exhaustion_state()
 
                 H_PD1 = self.exhaustion_level if self.model.pdl1_pd1_axis else 0.0
                 alpha = (P.k_TCD8_killing
@@ -505,6 +543,13 @@ class CD8TCell(Agent):
                         * (1.0 - H_Arg1)
                         * (1.0 - H_NO)
                         * (1.0 - H_PD1)) 
+                if self.diff_state == CD8DiffState.CD8TACTIVATED:
+                    alpha *= 2.0 # High chance to kill
+                if self.exhaustion_state == CD8ExhaustionState.CD8TEFFECTOR:
+                    alpha *= 1.5 # High chance to kill
+                if self.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
+                    alpha *= 0.25 # Reduced ability to kill
+
                 p_kill = 1.0 - math.exp(-self.model.timestep * alpha)
                 
                 if random.random() < p_kill:
@@ -516,8 +561,8 @@ class CD8TCell(Agent):
 class CD4DiffState(Enum):
     CD4THELPER = auto()
     CD4TREG  = auto()
-    CD4NAIVE = auto()
-    CD4ACTIVATED = auto()
+    CD4TNAIVE = auto()
+    CD4TACTIVATED = auto()
     
 class CD4TCell(Agent):
     """
@@ -537,7 +582,7 @@ class CD4TCell(Agent):
 
         # Initial state
         if diff_state is None:
-            self.diff_state = CD4DiffState.CD4NAIVE
+            self.diff_state = CD4DiffState.CD4TNAIVE
         else:
             self.diff_state = diff_state
 
@@ -559,6 +604,8 @@ class CD4TCell(Agent):
         self.alive = True
 
     def step(self):
+        if self.pos is None:
+            return
         x, y = self.pos
 
         # ---- 1) Age-based death ----
@@ -567,39 +614,72 @@ class CD4TCell(Agent):
             self.model.safe_remove_agent(self)
             return
         
-        # Determine if the naive cell is ready to be activated
-        if self.diff_state == CD4DiffState.CD4NAIVE:
-            local_IL12 = self.model.IL12_field[x, y]
+        # Determine if the naive cell is ready to be activated based on macrophage proximity
+        if self.diff_state == CD4DiffState.CD4TNAIVE:
+            x, y = self.pos
 
-            p_activate = 1 - math.exp(-P.k_TCD4_activation * self.model.timestep * local_IL12)
+            neighbors = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
+
+            N_M1 = 0
+
+            for nx, ny in neighbors:
+                if not (0 <= nx < self.model.width and 0 <= ny < self.model.height):
+                    continue
+
+                occupant = self.model.grid[nx][ny]
+                
+                if isinstance(occupant, Macrophage) and occupant.alive:
+                    if occupant.subtype == MacSubtype.M1:
+                        N_M1 += 1
+
+
+            # Normalize M1 signal (0 → 1)
+            signal_M1 = N_M1 / len(neighbors) if neighbors else 0.0
+
+            if N_M1 == 0:
+                return
+
+            local_IL12 = self.model.IL12_field[x, y]
+            mean_IL12 = np.mean(self.model.IL12_field) + 1e-12
+
+            IL12_signal = local_IL12 / (local_IL12 + mean_IL12)
+            combined_signal = signal_M1 * (1 + P.k_cytokine_CD4 * IL12_signal)
+
+            p_activate = 1 - math.exp( - self.model.timestep * P.k_TCR_activation * combined_signal)
 
             if random.random() < p_activate:
-                self.diff_state = CD4DiffState.CD4ACTIVATED
-                self.activation_age = 0.0  # reset clock
-            return
+                self.diff_state = CD4DiffState.CD4TACTIVATED
+                self.activation_age = 0.0
 
         # Activated cell remains activated (driven by commitment delay) before differentiating
-        if self.diff_state == CD4DiffState.CD4ACTIVATED:
+        if self.diff_state == CD4DiffState.CD4TACTIVATED:
             self.activation_age += self.model.timestep
 
-            if self.activation_age > P.commitment_delay:
+            if self.activation_age > P.cd4_commitment_delay:
                 local_TGFb = self.model.TGFb_field[x, y]
-
-                # Example cytokine-driven fate choice
-                p_Treg = local_TGFb / (local_TGFb + P.EC50_TGFb)
+                mean_TGFb = np.mean(self.model.TGFb_field) + 1e-12
+                p_Treg = local_TGFb / (local_TGFb + mean_TGFb) # Calculates relative TGFB concentration
 
                 if random.random() < p_Treg:
                     self.diff_state = CD4DiffState.CD4TREG
                 else:
                     self.diff_state = CD4DiffState.CD4THELPER
 
-        # ---- 3) Proliferation (induced by Arg1, at most once per 24h, max 4 divisions) ----
+        # ---- 3) Proliferation (induced by Arg1 or IL2)
         local_Arg1 = self.model.Arg1_field[x, y]
+
+        Arg1_signal = local_Arg1 / (local_Arg1 + P.EC50_Arg1_Treg)
+
+        local_IL2 = self.model.IL2_field[x, y]
+        mean_IL2 = np.mean(self.model.IL2_field) + 1e-12
+
+        IL2_signal = local_IL2 / (local_IL2 + mean_IL2)
+
         current_tick = self.model.schedule.time
         ticks_since_div = current_tick - self.last_div_tick
-        
+
         if self.diff_state == CD4DiffState.CD4THELPER:
-            p_div = 1 - math.exp(-P.k_TCD4_div * self.model.timestep)
+            p_div = 1 - math.exp(-P.k_TCD4_div * self.model.timestep * IL2_signal)
             if (ticks_since_div >= P.TCD4_div_Interval
                 and self.divisions_done < P.CD4_DIVISION_LIMIT
                 and random.random() <= p_div
@@ -609,7 +689,7 @@ class CD4TCell(Agent):
                 
         elif self.diff_state == CD4DiffState.CD4TREG:
             # Arg1-induced Treg proliferation
-            p_div = 1 - math.exp( -P.k_Arg1_Treg_div * self.model.timestep * local_Arg1 / (local_Arg1 + P.EC50_Arg1_Treg) )
+            p_div = 1 - math.exp( -P.k_Arg1_Treg_div * self.model.timestep * Arg1_signal * IL2_signal)
             if (ticks_since_div >= P.TCD4_div_Interval
                 and self.divisions_done < P.CD4_DIVISION_LIMIT
                 and random.random() <= p_div
@@ -618,7 +698,10 @@ class CD4TCell(Agent):
                 self._divide_if_possible()
 
         # ---- 4) Secretion ----
-        if self.diff_state == CD4DiffState.CD4THELPER:
+        if self.diff_state == CD4DiffState.CD4TACTIVATED:
+            # weak early secretion
+            self.model.IL2_secretion_map[x, y] += 0.5 * P.IL2_release * self.model.timestep
+        elif self.diff_state == CD4DiffState.CD4THELPER:
             # Thelper secretes IL-2 and IFNg
             self.model.IL2_secretion_map[x, y] += P.IL2_release * self.model.timestep
             self.model.IFNg_secretion_map[x, y] += P.IFNg_release * self.model.timestep
@@ -641,6 +724,9 @@ class CD4TCell(Agent):
         If there's at least one empty Moore neighbor, spawn a daughter with same diff_state.
         Reset division clock and increment divisions_done. If no empty neighbor, skip.
         """
+        if self.diff_state == CD4DiffState.CD4TNAIVE:
+            return # Naive cells do not divide
+
         neighbors = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
         if not empty:
@@ -677,7 +763,8 @@ class CD4TCell(Agent):
 
     def _migrate(self):
         """
-        Choose a random Moore neighbor and move there if empty.
+        Move towards a high IL2 field if high concentration, otherwise random:
+         If no empty neighbors, do not move.
         """
         neighbors = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
@@ -753,7 +840,8 @@ class MDSC(Agent):
 
     def _migrate(self):
         """
-        Choose a random Moore neighbor and move there if empty.
+        Move towards a higher CCL2 field if high concentration, otherwise random:
+         If no empty neighbors, do not move.
         """
         neighbors = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
@@ -928,16 +1016,19 @@ class Macrophage(Agent):
 
     def _migrate(self):
         """
-        Move to a random empty Moore neighbor if available.
+        Move towards a field if high concentration, otherwise random:
+            - M1: move towards higher IL-12
+            - M2: move towards higher TGFb
+         If no empty neighbors, do not move.
         """
         neighbors = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
         if not empty:
             return
 
-        if MacSubtype.M1:
+        if self.subtype == MacSubtype.M1:
             new_pos = self._choose_weighted_position(empty, self.model.IL12_field)
-        elif MacSubtype.M2:
+        elif self.subtype == MacSubtype.M2:
             new_pos = self._choose_weighted_position(empty, self.model.TGFb_field)
 
         self.model.grid.move_agent(self, new_pos)
