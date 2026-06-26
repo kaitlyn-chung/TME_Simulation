@@ -25,7 +25,9 @@ from ABM_Jul25.plot_simulation import (run_simulation_verbose,
                                         plot_cytokine_concentrations,
                                         plot_immune_population,
                                         plot_summary_dashboard,
-                                        plot_results_from_csv)
+                                        plot_results_from_csv,
+                                        animate_simulation,
+                                        pull_keyframes)
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -74,7 +76,7 @@ def main():
         for key, name, prompt, min_val in inputs:
             param_inputs[key] = get_value(name, prompt, min_val)
     
-        model = run_simulation_verbose(
+        model, frames = run_simulation_verbose(
             scenario='custom',
             custom_params=param_inputs,
             print_every=5,
@@ -86,7 +88,7 @@ def main():
     else:
         # Use a predefined scenario
         print(f"\nRunning {choice} scenario...")
-        model = run_simulation_verbose(
+        model, frames = run_simulation_verbose(
             scenario=choice,
             print_every=5,
             save_data=True,
@@ -122,6 +124,14 @@ def main():
     if fig4 is not None:
         plt.close(fig4)
 
+    # Animation of cell grid changes over time
+    print("  - .gif of simulation...")
+    animate_simulation(frames, output_dir)
+
+    # Keyframes from the animation
+    print("  - Keyframes of simulation...")
+    pull_keyframes(frames, output_dir)
+
     df = pd.read_csv(csv_path)
     # Immune cell populations over time
     print("  - Immune cell population dynamics...")
@@ -139,6 +149,7 @@ def main():
     print("  📈 simulation_dashboard.png - Comprehensive summary")
     print("  📋 cell_counts.csv - Raw data for further analysis")
     print("  📊 immune_population_over_time.png - Immune cell counts over time")
+    print("  📊 simulation.gif - Population changes over time in grid view by step")
     print("="*80)
     print("Move any files you want to save out of the 'simulation_output/' directory before doing a new run! They will be overridden! ")
     print("="*80)

@@ -5,6 +5,7 @@ Enhanced ABM runner with detailed step-by-step output and monitoring.
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import matplotlib.animation as animation
 import numpy as np
 import time
 import os
@@ -241,12 +242,13 @@ def run_simulation_verbose(
     print(f"\nModel initialized in {init_time:.3f}s")
 
     counts = get_cell_counts(model)
+    frames = []
     
-    # Print initial state
-    if print_every <= 1:
-        print_step_summary(counts, 0)
-        if show_molecules:
-            print_molecular_summary(model)
+    # Print the initial step
+    print_step_summary(counts, 0)
+    frames.append((0, encode_grid(model)))
+    if show_molecules:
+        print_molecular_summary(model)
 
     if save_data:
         save_step_data(counts, 0)
@@ -264,13 +266,13 @@ def run_simulation_verbose(
 
         if step % print_every == 0:
             print_step_summary(counts, step, step_time)
+            frames.append((step, encode_grid(model)))
             if show_molecules:
                 print_molecular_summary(model)
 
         if save_data:
             save_step_data(counts, step)
 
-        # Check if simulation should stop
         if not model.running:
             print(f"\n{'!'*60}")
             print(f"SIMULATION TERMINATED AT STEP {step}")
@@ -292,7 +294,7 @@ def run_simulation_verbose(
     counts = get_cell_counts(model)
     print_step_summary(counts, step)
 
-    return model
+    return model, frames
 
 ### Visualization functions
 
@@ -619,7 +621,7 @@ def plot_summary_dashboard(model, output_dir):
 
     plt.suptitle('ABM Simulation Summary Dashboard', fontsize=18, fontweight='bold', y=0.98)
 
-    # Leave the top 8% of the figure for the suptitle
+    # Leave the top 2% of the figure for the suptitle
     plt.tight_layout(rect=[0, 0, 1, 0.98])
     
     # Save the dashboard
@@ -688,3 +690,106 @@ def plot_results_from_csv(csv_file="cell_counts.csv", output_dir="simulation_out
         print(f"CSV file {csv_file} not found")
         return None
     return fig 
+
+def animate_simulation(frames, output_dir, interval=200):
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    cmap = mcolors.ListedColormap(GRID_COLORS)
+    bounds = np.arange(-0.5, len(GRID_COLORS) + 0.5, 1)
+    norm = mcolors.BoundaryNorm(bounds, cmap.N)
+
+    # unpack first frame
+    step0, grid0 = frames[0]
+    im = ax.imshow(grid0.T, cmap=cmap, norm=norm, origin="lower")
+
+    cbar = plt.colorbar(im, ax=ax, ticks=np.arange(len(GRID_COLORS)), shrink=0.8)
+    
+    cbar.set_ticklabels([
+        "Empty",
+        "Cancer Stem",
+        "Cancer Prog",
+        "Cancer Senescent", 
+        "CD8+ Naive",
+        "CD8+ Activated",
+        "CD8+ Memory",
+        "CD4+ Helper",
+        "CD4+ Treg",
+        "MDSC",
+        "M1 Mac",
+        "M2 Mac"
+    ])
+
+    ax.set_title(f"Step {step0}")
+
+    def update(frame_idx):
+        step, grid = frames[frame_idx]
+        im.set_data(grid.T)
+        ax.set_title(f"Step {step}")
+        return [im]
+
+    anim = animation.FuncAnimation(
+        fig,
+        update,
+        frames=len(frames),
+        interval=interval,
+        blit=False
+    )
+
+    gif_path = os.path.join(output_dir, "simulation.gif")
+    anim.save(gif_path, writer="pillow", fps=1000//interval)
+
+    return anim
+
+def pull_keyframes(frames, output_dir):
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5), constrained_layout=True)
+
+    # Colormap setup
+    cmap = mcolors.ListedColormap(GRID_COLORS)
+    bounds = np.arange(-0.5, len(GRID_COLORS) + 0.5, 1)
+    norm = mcolors.BoundaryNorm(bounds, cmap.N)
+
+    idx0 = 0
+    idx_mid = len(frames) // 2
+    idx_final = len(frames) - 1
+
+    keyframes = [
+        (idx0, "Initial"),
+        (idx_mid, "Midpoint"),
+        (idx_final, "Final")
+    ]
+
+    ims = []
+
+    for ax, (idx, title) in zip(axes, keyframes):
+        step, grid = frames[idx]
+
+        im = ax.imshow(grid.T, cmap=cmap, norm=norm, origin="lower")
+        ax.set_title(f"{title} (Step {step})")
+
+        ims.append(im)
+
+    cbar = fig.colorbar(ims[0], ax=axes,
+                        ticks=np.arange(len(GRID_COLORS)), shrink=0.6, pad=0.04)
+
+    cbar.set_ticklabels([
+        "Empty",
+        "Cancer Stem",
+        "Cancer Prog",
+        "Cancer Senescent",
+        "CD8+ Naive",
+        "CD8+ Activated",
+        "CD8+ Memory",
+        "CD4+ Helper",
+        "CD4+ Treg",
+        "MDSC",
+        "M1 Mac",
+        "M2 Mac"
+    ])
+
+    plt.suptitle('Key frames of spatial simulation', 
+                 fontsize=16, fontweight='bold', y=1.02)
+
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(os.path.join(output_dir, "keyframes.png"), dpi=300, bbox_inches='tight')
+    plt.close(fig)
