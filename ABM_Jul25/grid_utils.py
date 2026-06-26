@@ -108,16 +108,22 @@ def update_diffusion(
     # 1) Compute Laplacian (∇2C)
     lap = laplacian(field)
     
-    # 2) Compute ∂C/∂t = D * lap − decay * field + secretion_map - consumption_map
-    dCdt = D * lap - decay * field + secretion_map - consumption_map
+    # Scale secretions over dT
+    n_steps = int(P.timestep / P.delta_t)
+
+    scaled_secretion = secretion_map / n_steps
+    scaled_consumption = consumption_map / n_steps
+
+    # Apply diffusion + source first, scaled
+    field = field + dt * (D * lap + scaled_secretion - scaled_consumption)
+
+    # Then apply decay exactly (not linearized)
+    field *= np.exp(-decay * dt)
+
+    # Enforce non-negativity
+    field[field < 0] = 0.0
     
-    # 3) Euler step: C(t + dt) = C(t) + dt * dC/dt
-    new_field = field + dt * dCdt
-    
-    # 4) Enforce non‐negativity
-    new_field[new_field < 0] = 0.0
-    
-    return new_field
+    return field
 
 def update_diffusion_over_timestep(
     field: np.ndarray,
