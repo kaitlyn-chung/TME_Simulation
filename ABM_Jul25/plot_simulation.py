@@ -150,7 +150,6 @@ def get_cell_counts(model):
     counts['CD4_Activated'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TACTIVATED)
     counts['CD4_Helper'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4THELPER)
     counts['CD4_Treg'] = model.count_cell_type(CD4TCell, diff_state=CD4DiffState.CD4TREG)
-
     counts['M1'] = model.count_cell_type(Macrophage, subtype=MacSubtype.M1)
     counts['M2'] = model.count_cell_type(Macrophage, subtype=MacSubtype.M2)
     counts['MDSC'] = model.count_cell_type(MDSC)

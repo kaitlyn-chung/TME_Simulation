@@ -167,15 +167,6 @@ class ABM_Model(Model):
 
         self.running = True
 
-        # ---- Metrics history ----
-        self.tumor_count_history = []
-        self.cd8_count_history   = []
-        self.cd8_state_counts    = {"notexhausted": [], "effector": [], "terminal": []}
-        self.mean_exhaustion     = []
-        self.mean_pdl1_tumor     = []
-        self.mean_pd1_cd8        = []
-        self.shannon_entropy_history = []
-
     def count_agents(self, agent_type):
         """
         Count alive agents of the given type in the current schedule.
@@ -224,63 +215,6 @@ class ABM_Model(Model):
         except Exception:
             agent.alive = False
 
-    def _collect_metrics(self):
-        """Per-tick metric collection. Always runs regardless of axis state."""
-
-        # --- Population counts ---
-        n_tumor = self.count_agents(CancerCell)
-        n_cd8   = self.count_agents(CD8TCell)
-        self.tumor_count_history.append(n_tumor)
-        self.cd8_count_history.append(n_cd8)
-
-        # --- Shannon entropy of cell-type distribution ---
-        counts = [
-            n_tumor,
-            n_cd8,
-            self.count_agents(CD4TCell),
-            self.count_agents(Macrophage),
-            self.count_agents(MDSC),
-        ]
-        total = sum(counts)
-        if total > 0:
-            probs   = [c / total for c in counts if c > 0]
-            entropy = -sum(p * math.log(p) for p in probs)
-        else:
-            entropy = 0.0
-        self.shannon_entropy_history.append(entropy)
-
-        # --- PD-1/PD-L1 exhaustion metrics ---
-        # Collected regardless of axis state so lists stay the same length,
-        # making ON vs OFF comparison plots straightforward.
-        notexhausted = effector = terminal = 0
-        pd1_vals        = []
-        exhaustion_vals = []
-        pdl1_vals       = []
-
-        for agent in self.schedule.agents:
-
-            # Counting CD8s
-            if isinstance(agent, CD8TCell) and agent.alive:
-                pd1_vals.append(agent.pd1)
-                exhaustion_vals.append(agent.exhaustion_level)
-                if agent.exhaustion_state == CD8ExhaustionState.CD8TEFFECTOR:
-                    effector += 1
-                elif agent.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
-                    terminal += 1
-                elif agent.exhaustion_state == CD8ExhaustionState.CD8TPD1NEG:
-                    notexhausted += 1
-
-            # Counting Cancer Cells
-            elif isinstance(agent, CancerCell) and agent.alive:
-                pdl1_vals.append(agent.pdl1)
-        
-        self.cd8_state_counts["notexhausted"].append(notexhausted)
-        self.cd8_state_counts["effector"].append(effector)
-        self.cd8_state_counts["terminal"].append(terminal)
-        self.mean_pd1_cd8.append(np.mean(pd1_vals)        if pd1_vals        else 0.0)
-        self.mean_exhaustion.append(np.mean(exhaustion_vals) if exhaustion_vals else 0.0)
-        self.mean_pdl1_tumor.append(np.mean(pdl1_vals)    if pdl1_vals       else 0.0)
-
     def step(self):
         """
         1) Zero out all secretion maps.
@@ -322,7 +256,7 @@ class ABM_Model(Model):
 
         # ---- 5) Data collection and stopping criterion ----
         self.datacollector.collect(self)
-        self._collect_metrics()                 
+              
         # Stops running if no tumor cells remain alive 
         if self.count_agents(CancerCell) == 0:
             self.running = False
@@ -399,8 +333,11 @@ class ABM_Model(Model):
                     self.schedule.add(new_cd4)
         
                 elif u < threshold_mac:
-                    # recruit Macrophage (M1 by default)
-                    new_mac = Macrophage(self._next_id(), self, (x, y), subtype=MacSubtype.M1)
+                    # recruit Macrophage (based on 1.3:1 M1:M2 recruitment ratio)
+                    if random.random() < P.M1_M2_rec_ratio:
+                        new_mac = Macrophage(self._next_id(), self, (x, y), subtype=MacSubtype.M2)
+                    else:
+                        new_mac = Macrophage(self._next_id(), self, (x, y), subtype=MacSubtype.M1)
                     self.grid.place_agent(new_mac, (x, y))
                     self.schedule.add(new_mac)
         
