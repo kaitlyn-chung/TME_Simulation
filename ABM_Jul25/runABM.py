@@ -54,7 +54,7 @@ def main():
                 f"{params['steps']} steps")
     
     scenario_names = [s.lower() for s in DEFAULT_SCENARIOS.keys()]
-    choice = input('Which scenario would you like to choose? ').strip()
+    choice = input('Which scenario would you like to choose? ').strip().lower()
     while choice not in scenario_names:
         print('Invalid scenario name! Check your spelling and case sensitivity. ')
         choice = input('Which scenario would you like to choose? ').strip().lower()
