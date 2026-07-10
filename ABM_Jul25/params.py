@@ -1,6 +1,8 @@
 # params.py
 # All ABM parameters are defined here
 
+import math
+
 # Grid size
 # assume x/y dimension of each grid is 50μm (~single cell dimension)
 grid_width  = 100
@@ -17,7 +19,7 @@ D_Arg1 = 0.04    # = 100 μm²/sec
 D_CCL2 = 0.02    # = 50 μm²/sec 
 D_IFNg = 0.04    # = 100 μm²/sec 
 D_IL2  = 0.04    # = 100 μm²/sec 
-D_IL10 = 5.6e-4    # = 1.4 μm²/sec 
+D_IL10 = 30/(50*50)    # = 30 estimated, 1.4 μm²/sec 
 D_NO = 1.52    # = 3800 μm²/sec 
 D_O2 = 1.12    # = 2800 μm²/sec 
 D_TGFb  =  0.0104    # = 26 μm²/sec
@@ -25,12 +27,12 @@ D_VEGFA =  0.0116   # = 29 μm²/sec
 D_IL12 = 0.026    # = 65 μm²/sec, estimation based on IL-2
 
 # Decay rates (unit: 1/sec)
-lambda_Arg1 = 2e-6  # 1/sec
+lambda_Arg1 = math.log(2)/(30*60)  # = 30 min half life, 1/sec
 lambda_CCL2 = 1.67e-5  # 1/sec
 lambda_IFNg = 6.5e-5  # 1/sec
 lambda_IL2 = 2.78e-5  # 1/sec
 lambda_IL10 = 4.6e-5  # 1/sec
-lambda_NO = 1.56e-3  # 1/sec
+lambda_NO = 1e-2 # 1/sec
 lambda_O2 = 1e-5  # 1/sec
 lambda_TGFb  = 1.65e-4  # 1/sec
 lambda_VEGFA = 1.65e-4  # 1/sec
@@ -87,10 +89,10 @@ VEGFA_uptake = 5e-5 # VEGFA uptake by endothelial cells
 IFNg_uptake_cancer = 0.001 # IFNg consumption by cancer cells
 
 # Cancer Cell parameters
-CancerCell_stemGrowthRate = 2.9e-6 # /sec = 0.25/day, stem cell growth rate
+CancerCell_stemGrowthRate = (69/365)/(24*3600) # = 0.18/day originally, 2.9e-6 /sec = 0.25/day, stem cell growth rate
 CancerCell_asymDivProb = 0.95 # probability of cancer stem cell asymmetric division
 CancerCell_progGrowthRate = 5.8e-6 # /sec = 0.5/day, progenitor growth rate
-CancerCell_progDivMax = 9 # max divisions of progenitor
+CancerCell_progDivMax = 6 # max divisions of progenitor
 CancerCell_senescentDeathRate = 1.2e-5 # /sec = 1/day, senescent death rate
 CancerCell_stemMoveProb = 0.8 # probability of stem migration per timestep
 CancerCell_MoveProb = 1 # probability of non-stem migration per timestep
@@ -107,8 +109,9 @@ TCD8_div_Interval = 43200 # sec = 12h
 TCD8_div_limit_effector = 8 # higher division limit for clonal expansion
 TCD8_div_limit_memory = 4
 k_TCD8_killing = 1.16e-5 # cell/sec = 1 cell/day
-k_TCR_activation = 1e-5 # 1/(molecules/grid * sec), scales with IFNg and IL-2 fields, used for both CD8 and CD4
+k_TCR_activation = 1e-4 # 1/(molecules/grid * sec), used for both CD8 and CD4, activation within a few hours
 k_cytokine_CD8 = 1e-5 # 1/sec, rate of becoming fully active once TCR signal is above threshold
+TCD8_kill_cooldown = 2*3600 # sec, two hours to cooldown
 
 # Coefficients in Hill function of TCD8 inhibition
 k_hill_MDSC_TCD8 = 2 # Half‐maximal inhibition = 2 MDSCs in neighborhood
@@ -159,18 +162,19 @@ k_MDSC_rec_base = 2.43e-8 # molecules/sec = 0.0021/day
 k_MDSC_rec_max = 1.4e-7 # molecules/sec = 0.012/day max recruitment rate at saturated CCL2
 EC50_CCL2_MDSC_rec = 5e-10 * 1.25e-10 * Avogadro_No # molecules = 5e-10 M
 k_Mac_rec = 2.46e-7 # molecules/sec = 1.7e5 cell/mL/day
+M1_M2_rec_ratio = 1.3/(1+1.3) # 1.3:1 M1:M2 recruitment ratio
 
 # --- PD-L1 (Tumor cells) ---
 PDL1_baseline_mean      = 0.15        # normalized surface expression [0–1]
 PDL1_baseline_sd        = 0.05        # cell-to-cell heterogeneity
 PDL1_IFNg_max           = 0.75        # max fold-upregulation above baseline
-EC50_IFNg_PDL1          = 1e-9 * 1.25e-10 * Avogadro_No   # ~1 nM in molecules/grid
+EC50_IFNg_PDL1          = 1.43e-9 * Avogadro_No * 1.25e-10 # M, 50ng/mL
 k_PDL1_upregulation     = 1e-5        # 1/sec, rate toward IFNg-driven target
 k_PDL1_decay            = 5e-6        # 1/sec, surface turnover (~half-life ~38h)
 
 # --- PD-1 (CD8 T cells) ---
 PD1_baseline            = 0.05        # resting/naive PD-1 level [0–1]
-k_PD1_upregulation      = 1e-15       # 1/(molecules/grid * sec) — scales with IL-2 field
+k_PD1_upregulation      = 1e-5       # 1/(molecules/grid * sec) — scales with IL-2 field
 k_PD1_decay             = 1e-6        # 1/sec, decay when unstimulated
 
 # --- PD-1:PD-L1 interaction & exhaustion ---
