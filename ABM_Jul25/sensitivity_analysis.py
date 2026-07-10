@@ -39,111 +39,115 @@ import shutil
 #    where you have strong prior knowledge.
 # ─────────────────────────────────────────────────────────────────────────────
 
-parameter_names = [
-        # --- Cancer cell kinetics ---
-        'CancerCell_stemGrowthRate',      # stem cell growth rate
-        # 'CancerCell_asymDivProb',          # asymmetric division probability
-        # 'CancerCell_progGrowthRate',       # progenitor growth rate
-        # 'CancerCell_progDivMax',           # max progenitor divisions
-        # 'CancerCell_senescentDeathRate',   # senescent death rate
-        # 'CancerCell_stemMoveProb',         # stem migration probability
-        # 'CancerCell_MoveProb',             # non-stem migration probability
+import ABM_Jul25.params as P
 
-        # # --- CD8 T cell kinetics ---
-        # 'k_TCD8_killing',                  # killing rate
-        # 'TCD8_div_Limit',                  # division limit
-        # 'k_hill_MDSC_TCD8',               # MDSC inhibition half-max
-        # 'IC50_Arg1_TCD8',                  # Arg1 inhibition of CD8
-        # 'IC50_NO_TCD8',                    # NO inhibition of CD8
+# PARAM_SPECS: (param_name, pct_range, lower_clip, upper_clip, is_integer)
+#   - param_name  : must exactly match an attribute in params.py
+#   - pct_range   : bounds are set to value * (1 -/+ pct_range)
+#   - lower_clip / upper_clip : hard biological limits (None = no clip);
+#                   used for probabilities/fractions that must stay in [0, 1]
+#   - is_integer  : round sampled values to the nearest int before use
+#                   (division counts, Hill neighborhood counts, etc.)
+#
+# NOTE: diffusion coefficients, decay rates, molecular weights, and mass-based
+# release rates are excluded — those are fixed by biophysics/literature, not
+# fitted behavioral parameters. Uncomment/add rows below to expand the sweep;
+# just make sure the name matches params.py exactly (a mismatch raises a
+# clear warning below rather than failing silently).
 
-        # # --- CD4 T cell kinetics ---
-        # 'TCD4_Treg_frac',                  # initial Treg fraction
-        # 'TCD4_k_Th_diff_Treg',            # Th -> Treg differentiation rate
-        # 'k_TCD4_div',                      # CD4 division rate
-        # 'EC50_Arg1_Treg',                  # Arg1 effect on Treg division
-        # 'k_Arg1_Treg_div',                 # Arg1-driven Treg division rate
+PARAM_SPECS = [
+    # --- Cancer cell kinetics ---
+    ('CancerCell_stemGrowthRate',      0.5,  0.0,  None, False),
+    # ('CancerCell_asymDivProb',         0.15, 0.7,  1.0,  False),
+    # ('CancerCell_progGrowthRate',      0.5,  0.0,  None, False),
+    # ('CancerCell_progDivMax',          0.5,  2,    15,   True),
+    # ('CancerCell_senescentDeathRate',  0.5,  0.0,  None, False),
+    # ('CancerCell_stemMoveProb',        0.3,  0.0,  1.0,  False),
 
-        # # --- Macrophage polarization ---
-        # 'k_Mac_M1_pol',                    # M2 -> M1 polarization rate
-        # 'k_Mac_M2_pol',                    # M1 -> M2 polarization rate
-        # 'EC50_TGFb_M2',                    # TGFb threshold for M2 polarization
-        # 'EC50_IL10_M2',                    # IL10 threshold for M2 polarization
-        # 'EC50_IFNg_M1',                    # IFNg threshold for M1 polarization
-        # 'EC50_IL12_M1',                    # IL12 threshold for M1 polarization
-        # 'k_M1_phago',                      # M1 phagocytosis rate
+    # # --- CD8 T cell kinetics ---
+    # ('TCD8_prolif_IL2th',              0.5,  0.0,  None, False),
+    # ('TCD8_div_Interval',              0.5,  0.0,  None, False),
+    # ('TCD8_div_limit_effector',        0.5,  2,    20,   True),
+    # ('TCD8_div_limit_memory',          0.5,  1,    10,   True),
+    # ('k_TCR_activation',               0.5,  0.0,  None, False),
+    # ('k_cytokine_CD8',                 0.5,  0.0,  None, False),
+    # ('k_hill_MDSC_TCD8',               0.5,  1,    6,    True),
 
-        # # --- Recruitment rates ---
-        # 'k_TCD8_rec',                      # CD8 recruitment
-        # 'k_TCD4_rec',                      # CD4 recruitment
-        # 'k_MDSC_rec_base',                 # baseline MDSC recruitment
-        # 'k_MDSC_rec_max',                  # max MDSC recruitment
-        # 'k_Mac_rec',                       # macrophage recruitment
+    # # --- CD4 T cell kinetics ---
+    # ('TCD4_Treg_frac',                 0.5,  0.0,  1.0,  False),
+    # ('k_TCD4_div',                     0.5,  0.0,  None, False),
+    # ('EC50_Arg1_Treg',                 0.5,  0.0,  None, False),
+    # ('k_Arg1_Treg_div',                0.5,  0.0,  None, False),
 
-        # # --- PD-1 / PD-L1 axis ---
-        # 'PDL1_baseline_mean',              # baseline PD-L1 expression
-        # 'PDL1_IFNg_max',                   # max IFNg-driven PD-L1
-        # 'k_PDL1_upregulation',             # rate of PD-L1 upregulation
-        # 'k_exhaustion_rate',               # CD8 exhaustion accumulation rate
-        # 'k_exhaustion_recovery',           # CD8 exhaustion recovery rate
-        # 'exhaustion_threshold_term',       # terminal exhaustion threshold
-    ]
+    # # --- Macrophage polarization / phagocytosis ---
+    # ('k_Mac_M1_pol',                   0.5,  0.0,  None, False),
+    # ('k_Mac_M2_pol',                   0.5,  0.0,  None, False),
+    # ('EC50_TGFb_M2',                   0.5,  0.0,  None, False),
+    # ('EC50_IL10_M2',                   0.5,  0.0,  None, False),
+    # ('EC50_IFNg_M1',                   0.5,  0.0,  None, False),
+    # ('EC50_IL12_M1',                   0.5,  0.0,  None, False),
+    # ('k_M1_phago',                     0.5,  0.0,  None, False),
+    # ('IC50_IL10_phago',                0.5,  0.0,  None, False),
 
-parameter_bounds = [
-        # Cancer cell kinetics — ±50% unless biologically constrained
-        [1.45e-6,  4.35e-6],   # stemGrowthRate
-        # [0.85,     0.99],      # asymDivProb (constrained: must stay high)
-        # [2.9e-6,   8.7e-6],    # progGrowthRate
-        # [5,        15],        # progDivMax (integer-valued, treat as continuous)
-        # [6e-6,     1.8e-5],    # senescentDeathRate
-        # [0.4,      1.0],       # stemMoveProb
-        # [0.5,      1.0],       # MoveProb (constrained: already at max)
+    # # --- Recruitment rates ---
+    # ('k_TCD8_rec',                     0.5,  0.0,  None, False),
+    # ('k_TCD4_rec',                     0.5,  0.0,  None, False),
+    # ('k_MDSC_rec_base',                0.5,  0.0,  None, False),
+    # ('k_MDSC_rec_max',                 0.5,  0.0,  None, False),
+    # ('k_Mac_rec',                      0.5,  0.0,  None, False),
+    # ('M1_M2_rec_ratio',                0.3,  0.0,  1.0,  False),
 
-        # # CD8 kinetics
-        # [5.8e-6,   1.74e-5],   # k_TCD8_killing
-        # [2,        6],         # div_Limit
-        # [1,        4],         # k_hill_MDSC (neighborhood count)
-        # [2.65e+11, 7.95e+11],  # IC50_Arg1_TCD8
-        # [3.75e-10*1.25e-10*6.022e23*0.5,
-        #  3.75e-10*1.25e-10*6.022e23*1.5], # IC50_NO_TCD8
+    # # --- PD-1 / PD-L1 axis ---
+    # ('PDL1_baseline_mean',             0.5,  0.0,  1.0,  False),
+    # ('PDL1_IFNg_max',                  0.3,  0.0,  1.0,  False),
+    # ('k_PDL1_upregulation',            0.5,  0.0,  None, False),
+    # ('k_PD1_upregulation',             0.5,  0.0,  None, False),
+    # ('k_PD1_signaling',                0.5,  0.0,  None, False),
+    # ('k_exhaustion_rate',              0.5,  0.0,  None, False),
+    # ('k_exhaustion_recovery',          0.5,  0.0,  None, False),
+    # ('exhaustion_threshold_eff',       0.3,  0.05, 0.95, False),
+    # ('exhaustion_threshold_term',      0.3,  0.05, 0.95, False),
+]
 
-        # # CD4 kinetics
-        # [0.05,     0.40],      # Treg_frac
-        # [1.275e-7, 3.825e-7],  # Th->Treg diff rate
-        # [5.8e-6,   1.74e-5],   # CD4 div rate
-        # [9.5e+10,  2.85e+11],  # EC50_Arg1_Treg
-        # [1.215e-5, 3.645e-5],  # k_Arg1_Treg_div
 
-        # # Macrophage polarization
-        # [1.6075e-7, 4.8225e-7], # k_Mac_M1_pol
-        # [1.447e-6,  4.341e-6],  # k_Mac_M2_pol
-        # [EC50_TGFb_M2*0.5, EC50_TGFb_M2*1.5] if False else  # placeholder
-        # [8.75e-23,  2.625e-22], # EC50_TGFb_M2 (approximate)
-        # [5e-24,     1.5e-23],   # EC50_IL10_M2
-        # [1.8125e-22,5.4375e-22],# EC50_IFNg_M1
-        # [8.75e-23,  2.625e-22], # EC50_IL12_M1
-        # [2.8935e-6, 8.6805e-6], # k_M1_phago
+def build_problem(param_specs=PARAM_SPECS):
+    """
+    Build the SALib 'problem' dict directly from the live values in params.py,
+    so bounds always stay consistent with whatever is currently in params.py.
+    Also returns a dict flagging which parameters should be rounded to int.
+    """
+    names, bounds, integer_flags = [], [], {}
 
-        # # Recruitment
-        # [1.25e-7,  3.75e-7],   # k_TCD8_rec
-        # [6.25e-8,  1.875e-7],  # k_TCD4_rec
-        # [1.215e-8, 3.645e-8],  # k_MDSC_rec_base
-        # [7e-8,     2.1e-7],    # k_MDSC_rec_max
-        # [1.23e-7,  3.69e-7],   # k_Mac_rec
+    for name, pct, lo_clip, hi_clip, is_int in param_specs:
+        if not hasattr(P, name):
+            warnings.warn(
+                f"params.py has no attribute '{name}' — skipping this "
+                f"parameter in the sensitivity sweep. Check for a rename/typo."
+            )
+            continue
 
-        # # PD-1/PD-L1 
-        # [0.05,     0.30],      # PDL1_baseline_mean
-        # [0.50,     0.95],      # PDL1_IFNg_max
-        # [5e-6,     1.5e-5],    # k_PDL1_upregulation
-        # [5e-6,     1.5e-5],    # k_exhaustion_rate
-        # [2.5e-7,   7.5e-7],    # k_exhaustion_recovery
-        # [0.50,     0.90],      # exhaustion_threshold_term
-    ]
+        val = float(getattr(P, name))
+        lo, hi = val * (1 - pct), val * (1 + pct)
+        if val < 0:  # guard in case pct pushes sign flip on a negative-valued param
+            lo, hi = hi, lo
+        if lo_clip is not None:
+            lo = max(lo, lo_clip)
+        if hi_clip is not None:
+            hi = min(hi, hi_clip)
+        if lo >= hi:
+            # Degenerate range (e.g. value already at a clip boundary) —
+            # fall back to a tight +/-10% window so SALib doesn't choke.
+            lo, hi = val * 0.9, val * 1.1
 
-problem = {
-    'num_vars': len(parameter_names),
-    'names': parameter_names,
-    'bounds': parameter_bounds
-}
+        names.append(name)
+        bounds.append([lo, hi])
+        integer_flags[name] = is_int
+
+    problem = {'num_vars': len(names), 'names': names, 'bounds': bounds}
+    return problem, integer_flags
+
+
+problem, INTEGER_PARAMS = build_problem()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. SUMMARY STATISTICS
@@ -187,7 +191,6 @@ SUMMARY_STAT_NAMES = [
 # ─────────────────────────────────────────────────────────────────────────────
 
 import importlib
-import ABM_Jul25.params as P
 from ABM_Jul25.plot_simulation import run_simulation_verbose
 from ABM_Jul25.model import ABM_Model
 from ABM_Jul25.scenarios import DEFAULT_SCENARIOS
@@ -203,9 +206,12 @@ def run_abm(param_set: dict, n_replicates: int = 3, seed_offset: int = 0) -> dic
     # 1) Save original param values so we can restore them after
     original_vals = {key: getattr(P, key) for key in param_set if hasattr(P, key)}
 
-    # 2) Override params module in-place
+    # 2) Override params module in-place (rounding integer-valued params,
+    #    e.g. division counts, Hill neighborhood counts)
     for key, val in param_set.items():
         if hasattr(P, key):
+            if INTEGER_PARAMS.get(key, False):
+                val = int(round(val))
             setattr(P, key, val)
 
     results_across_reps = []
@@ -254,27 +260,26 @@ def run_abm(param_set: dict, n_replicates: int = 3, seed_offset: int = 0) -> dic
 
 def _compute_summary_stats(model) -> dict:
     """
-    Extract summary statistics from a completed ABM_Model instance.
-    Uses model.cd8_state_counts, mean_pdl1_tumor, and live agent counts.
+    Extract summary statistics from a completed ABM_Model instance, using
+    only live-agent introspection (model.count_agents / count_cell_type)
+    since the model does not keep time-series histories of exhaustion state
+    or PD-L1 — those attributes live on individual CancerCell/CD8TCell
+    agents, not on the model itself.
     """
     # --- Tumor cell count (final step) ---
     tumor_count = model.count_agents(A.CancerCell)
 
-    # --- CD8 exhaustion (final step from tracked histories) ---
-    if model.cd8_state_counts["effector"] and model.cd8_state_counts["terminal"]:
-        n_effector  = model.cd8_state_counts["effector"][-1]
-        n_prex      = model.cd8_state_counts["prexhausted"][-1]
-        n_terminal  = model.cd8_state_counts["terminal"][-1]
-        n_cd8_total = n_effector + n_prex + n_terminal
-        cd8_exhausted_frac = n_terminal  / n_cd8_total if n_cd8_total > 0 else 0.0
-        cd8_active_frac    = n_effector  / n_cd8_total if n_cd8_total > 0 else 0.0
-    else:
-        cd8_exhausted_frac = 0.0
-        cd8_active_frac    = 0.0
+    # --- CD8 exhaustion state breakdown (live agents) ---
+    n_pd1neg   = model.count_cell_type(A.CD8TCell, exhaustion_state=A.CD8ExhaustionState.CD8TPD1NEG)
+    n_effector = model.count_cell_type(A.CD8TCell, exhaustion_state=A.CD8ExhaustionState.CD8TEFFECTOR)
+    n_terminal = model.count_cell_type(A.CD8TCell, exhaustion_state=A.CD8ExhaustionState.CD8TTERMINAL)
+    n_cd8_total = n_pd1neg + n_effector + n_terminal
+    cd8_exhausted_frac = n_terminal / n_cd8_total if n_cd8_total > 0 else 0.0
+    cd8_active_frac    = n_effector / n_cd8_total if n_cd8_total > 0 else 0.0
 
-    # --- Treg fraction among CD4 (live agents) ---
-    n_treg   = model.count_cell_type(A.CD4TCell, subtype=A.CD4TSubtype.CD4TREG)
-    n_thelper= model.count_cell_type(A.CD4TCell, subtype=A.CD4TSubtype.CD4THELPER)
+    # --- Treg fraction among CD4 (live agents; diff_state, not subtype) ---
+    n_treg    = model.count_cell_type(A.CD4TCell, diff_state=A.CD4DiffState.CD4TREG)
+    n_thelper = model.count_cell_type(A.CD4TCell, diff_state=A.CD4DiffState.CD4THELPER)
     n_cd4_total = n_treg + n_thelper
     treg_frac = n_treg / n_cd4_total if n_cd4_total > 0 else 0.0
 
@@ -286,13 +291,18 @@ def _compute_summary_stats(model) -> dict:
     # --- MDSC count ---
     mdsc_count = model.count_agents(A.MDSC)
 
-    # --- Tumor/immune ratio ---
-    n_immune_total = (model.count_agents(A.CD8TCell) + n_cd4_total +
-                      n_m1 + n_m2 + mdsc_count)
+    # --- Tumor/immune ratio (all CD8 diff states + all CD4 diff states) ---
+    n_cd8_all = model.count_agents(A.CD8TCell)
+    n_cd4_all = model.count_agents(A.CD4TCell)
+    n_immune_total = n_cd8_all + n_cd4_all + n_m1 + n_m2 + mdsc_count
     tumor_immune_ratio = tumor_count / n_immune_total if n_immune_total > 0 else np.nan
 
-    # --- Mean PD-L1 on tumor cells (tracked history) ---
-    pdl1_mean = model.mean_pdl1_tumor[-1] if model.mean_pdl1_tumor else 0.0
+    # --- Mean PD-L1 on live tumor cells ---
+    pdl1_vals = [
+        agent.pdl1 for agent in model.schedule.agents
+        if isinstance(agent, A.CancerCell) and getattr(agent, "alive", True)
+    ]
+    pdl1_mean = float(np.mean(pdl1_vals)) if pdl1_vals else 0.0
 
     return {
         'tumor_cell_count':       float(tumor_count),
@@ -394,9 +404,134 @@ def evaluate_samples(param_values: np.ndarray,
     return Y
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 5. ANALYSIS AND VISUALIZATION
-# ─────────────────────────────────────────────────────────────────────────────
+def get_chunk_indices(n_samples: int, n_chunks: int, chunk_index: int) -> np.ndarray:
+    """
+    Split range(n_samples) into n_chunks contiguous, near-equal pieces and
+    return the indices belonging to chunk_index (0-indexed).
+    Used to shard the Sobol sample matrix across independent HPC array tasks.
+    """
+    if not (0 <= chunk_index < n_chunks):
+        raise ValueError(f"chunk_index {chunk_index} out of range for n_chunks {n_chunks}")
+    bounds = np.linspace(0, n_samples, n_chunks + 1).astype(int)
+    return np.arange(bounds[chunk_index], bounds[chunk_index + 1])
+
+
+def evaluate_chunk(param_values: np.ndarray,
+                    n_chunks: int,
+                    chunk_index: int,
+                    n_jobs: int = None,
+                    n_replicates: int = 3,
+                    output_dir: str = 'sensitivity_results') -> str:
+    """
+    Evaluate only this chunk's slice of the full sample matrix and save the
+    partial results to their own file. Designed to be called once per SLURM
+    array task (task ID = chunk_index), so many chunks run concurrently
+    across separate nodes — this is the actual HPC parallelization axis;
+    n_jobs below only threads across cores *within* one chunk's node.
+
+    Safe to re-run: if this chunk's file already exists and is fully
+    populated (no NaNs), it is skipped so a resubmitted array job doesn't
+    redo finished work.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    chunk_file = os.path.join(output_dir, f"chunk_{chunk_index:04d}_of_{n_chunks:04d}.npz")
+    idx = get_chunk_indices(len(param_values), n_chunks, chunk_index)
+
+    if os.path.exists(chunk_file):
+        existing = np.load(chunk_file)
+        if not np.isnan(existing['Y']).any():
+            print(f"Chunk {chunk_index}/{n_chunks} already complete at {chunk_file} — skipping.")
+            return chunk_file
+        print(f"Chunk {chunk_index}/{n_chunks} found partially complete — resuming within chunk.")
+        Y_chunk = existing['Y']
+    else:
+        Y_chunk = np.full((len(idx), len(SUMMARY_STAT_NAMES)), np.nan)
+
+    n_jobs = n_jobs or max(1, cpu_count() - 1)
+    remaining = [i for i, local_i in enumerate(range(len(idx))) if np.isnan(Y_chunk[local_i]).all()]
+    args_list = [(int(idx[i]), param_values[idx[i]], n_replicates) for i in remaining]
+
+    print(f"Chunk {chunk_index}/{n_chunks}: evaluating {len(args_list)} of {len(idx)} "
+          f"assigned samples (global indices {idx[0]}..{idx[-1]}) with {n_jobs} workers...")
+
+    def _save():
+        np.savez(chunk_file, global_indices=idx, Y=Y_chunk)
+
+    if n_jobs > 1 and len(args_list) > 1:
+        with Pool(n_jobs) as pool:
+            for batch_start in range(0, len(args_list), 50):
+                batch = args_list[batch_start:batch_start + 50]
+                results = pool.map(evaluate_one, batch)
+                for global_idx, stats in results:
+                    local_i = int(np.where(idx == global_idx)[0][0])
+                    Y_chunk[local_i] = stats
+                _save()
+                print(f"  chunk {chunk_index}: {batch_start + len(batch)}/{len(args_list)} newly done")
+    else:
+        for i, (global_idx, stats) in enumerate(map(evaluate_one, args_list)):
+            local_i = int(np.where(idx == global_idx)[0][0])
+            Y_chunk[local_i] = stats
+            if i % 25 == 0:
+                _save()
+                print(f"  chunk {chunk_index}: {i + 1}/{len(args_list)} newly done")
+
+    _save()
+    print(f"Chunk {chunk_index}/{n_chunks} complete -> {chunk_file}")
+    return chunk_file
+
+
+def merge_chunks(n_samples: int,
+                  n_chunks: int,
+                  output_dir: str = 'sensitivity_results',
+                  checkpoint_file: str = None,
+                  archive_merged: bool = True) -> np.ndarray:
+    """
+    Stitch all chunk_*.npz files in output_dir back into one (n_samples, n_stats)
+    array, in the same format evaluate_samples()/the --skip-eval path expects.
+    Raises with a clear message listing any missing/incomplete chunks rather
+    than silently returning partial data. Saves merged files to a temp subdir to avoid clutter if archive_merged=True.
+    """
+    n_stats = len(SUMMARY_STAT_NAMES)
+    Y = np.full((n_samples, n_stats), np.nan)
+
+    missing, incomplete = [], []
+    merged_files = []
+
+    for chunk_index in range(n_chunks):
+        chunk_file = os.path.join(output_dir, f"chunk_{chunk_index:04d}_of_{n_chunks:04d}.npz")
+        if not os.path.exists(chunk_file):
+            missing.append(chunk_index)
+            continue
+        data = np.load(chunk_file)
+        gidx, Yc = data['global_indices'], data['Y']
+        if np.isnan(Yc).any():
+            incomplete.append(chunk_index)
+        Y[gidx] = Yc
+        merged_files.append(chunk_file)
+
+    if missing:
+        print(f"WARNING: {len(missing)} chunk file(s) not found: {missing}")
+    if incomplete:
+        print(f"WARNING: {len(incomplete)} chunk file(s) still have NaN rows "
+              f"(unfinished evaluation): {incomplete}")
+    n_done = np.sum(~np.isnan(Y).any(axis=1))
+    print(f"Merged {n_done}/{n_samples} samples from {n_chunks} chunk file(s) in {output_dir}/")
+    
+    if checkpoint_file:
+        np.save(checkpoint_file, Y)
+        print(f"Saved merged results to {checkpoint_file}")
+
+    if archive_merged and merged_files:
+        archive_dir = os.path.join(output_dir, "merged_chunks_archive")
+        os.makedirs(archive_dir, exist_ok=True)
+
+        for f in merged_files:
+            shutil.move(f, archive_dir)
+        print(f"Moved {len(merged_files)} chunk files to {archive_dir} to avoid clutter.")
+
+    return Y
+
+
 
 def run_sobol_analysis(param_values: np.ndarray,
                        Y: np.ndarray,
@@ -423,12 +558,41 @@ def run_sobol_analysis(param_values: np.ndarray,
             print(f"Warning: {stat_name} has {(~valid).sum()} NaN runs "
                   f"({100*(~valid).mean():.1f}%) — check ABM stability")
 
-        Si = sobol_analyze.analyze(
-            problem,
-            y_col,
-            calc_second_order=True,
-            print_to_console=False
-        )
+        # SALib's Sobol estimator divides by Var(y); a statistic that came
+        # back constant (e.g. an outcome that never varied across this
+        # sample, such as a summary stat that stayed at 0 for every run)
+        # produces Var=0 -> inf/NaN partway through analyze() and crashes
+        # the whole job. Skip it with a clear message instead of losing
+        # every other statistic's results on an HPC run.
+        if np.any(~valid):
+            print(f"Skipping {stat_name} — contains NaN values from failed ABM runs; "
+                  f"cannot run Sobol analysis on an incomplete sample. Investigate "
+                  f"the failed runs (see per-sample error messages during evaluation) "
+                  f"before re-running this statistic.")
+            continue
+        if np.nanvar(y_col) == 0:
+            print(f"Skipping {stat_name} — zero variance across all samples "
+                  f"(value was constant: {y_col[0]:.4g}). No sensitivity to compute.")
+            continue
+
+        # SALib's Sobol estimator can still raise internally (not just via
+        # the variance/NaN guards above) when a *subset* of the resampled
+        # A/B/AB matrices happens to be constant — this is more likely with
+        # small N or with sparse/skewed outcomes (e.g. a fraction that's
+        # mostly 0). Isolate each statistic so one degenerate case doesn't
+        # take down the whole (potentially multi-day) analysis run.
+        try:
+            Si = sobol_analyze.analyze(
+                problem,
+                y_col,
+                calc_second_order=True,
+                print_to_console=False
+            )
+        except Exception as e:
+            print(f"Skipping {stat_name} — SALib Sobol analysis failed ({e}). "
+                  f"This usually means the outcome was too degenerate/sparse at this "
+                  f"sample size; consider a larger N or check for a modeling issue.")
+            continue
         all_indices[stat_name] = Si
 
         # Save to CSV
@@ -590,57 +754,148 @@ if __name__ == '__main__':
     import argparse
     warnings.filterwarnings("ignore", category=UserWarning)
 
-    parser = argparse.ArgumentParser(description='Sobol sensitivity analysis for tumor ABM')
+    parser = argparse.ArgumentParser(
+        description='Sobol sensitivity analysis for tumor ABM',
+        epilog=(
+            "HPC usage (recommended): run in three phases so the expensive "
+            "evaluation phase can be sharded across a SLURM array —\n"
+            "  1) --mode sample    (once)\n"
+            "  2) --mode evaluate-chunk --n-chunks K --chunk-index $SLURM_ARRAY_TASK_ID  "
+            "(K array tasks, run concurrently)\n"
+            "  3) --mode merge     then   --mode analyze   (once, after all chunks finish)\n"
+            "Single-machine usage: --mode full runs all phases sequentially on one node."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument('--mode', type=str, default='full',
+                        choices=['full', 'sample', 'evaluate-chunk', 'merge', 'analyze'],
+                        help="Pipeline phase to run. 'full' = original single-node behavior.")
     parser.add_argument('--N', type=int, default=64,
                         help='Sobol sample size (total runs = N*(2*params+2)). '
                              'Start with 64, increase to 256+ for final analysis.')
     parser.add_argument('--n-replicates', type=int, default=3,
                         help='ABM replicates per parameter set (handles stochasticity)')
     parser.add_argument('--n-jobs', type=int, default=None,
-                        help='Parallel workers (default: n_cpu - 1)')
+                        help='Parallel workers WITHIN this task/node (default: n_cpu - 1)')
+    parser.add_argument('--n-chunks', type=int, default=1,
+                        help='Total number of shards to split the sample matrix into '
+                             '(set this to your SLURM array size)')
+    parser.add_argument('--chunk-index', type=int, default=0,
+                        help='Which shard this task evaluates, 0-indexed '
+                             '(pass $SLURM_ARRAY_TASK_ID here)')
     parser.add_argument('--output-dir', type=str, default='sensitivity_results',
                         help='Directory for outputs')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--skip-eval', action='store_true',
-                        help='Skip ABM evaluation, load from checkpoint and re-analyze')
+                        help="('full' mode only) Skip ABM evaluation entirely, load Y from "
+                             "checkpoint and only re-run analysis/plots")
+    parser.add_argument('--resume', action='store_true',
+                        help="('full' mode only) Resume evaluation from an existing checkpoint "
+                             "in --output-dir instead of wiping it and starting over.")
     args = parser.parse_args()
 
-    print(f"\nTumor ABM Sensitivity Analysis")
+    print(f"\nTumor ABM Sensitivity Analysis  [mode={args.mode}]")
     print(f"  Parameters: {problem['num_vars']}")
     print(f"  Summary statistics: {len(SUMMARY_STAT_NAMES)}")
-    print(f"  N = {args.N}  →  {args.N * (2*problem['num_vars'] + 2)} ABM runs "
+    n_total_samples_formula = args.N * (2 * problem['num_vars'] + 2)
+    print(f"  N = {args.N}  →  {n_total_samples_formula} parameter sets "
           f"× {args.n_replicates} replicates = "
-          f"{args.N * (2*problem['num_vars'] + 2) * args.n_replicates} total simulations\n")
+          f"{n_total_samples_formula * args.n_replicates} total ABM runs\n")
 
-    # Step 1: Sample
-    param_values = generate_samples(N=args.N, seed=args.seed)
+    samples_file = os.path.join(args.output_dir, f"param_values_N{args.N}.npy")
+    checkpoint = os.path.join(args.output_dir, f"checkpoint_N{args.N}.npy")
 
-    # Step 1.5: Create the output directory, checking that it exists
-    if os.path.exists(args.output_dir):   # Will hold onto cache of previously run simulations if we don't clear what already exists
-        shutil.rmtree(args.output_dir)
-                                                  
-    os.makedirs(args.output_dir, exist_ok=True)
-    
-    # Step 2: Evaluate
-    checkpoint = f"{args.output_dir}/checkpoint_N{args.N}.npy"
-    if args.skip_eval and os.path.exists(checkpoint):
-        print(f"Loading evaluations from {checkpoint}")
+    # ---- Phase: sample ----
+    # Generates the Saltelli sample matrix once and saves it to disk so every
+    # downstream array task (and the merge/analyze phase) reads the exact
+    # same samples. Run this as a single, short, non-array job.
+    if args.mode == 'sample':
+        os.makedirs(args.output_dir, exist_ok=True)
+        param_values = generate_samples(N=args.N, seed=args.seed)
+        np.save(samples_file, param_values)
+        n = len(param_values)
+        print(f"Saved {n} parameter sets to {samples_file}")
+        print(f"Suggested --n-chunks for an array job: something that divides "
+              f"cleanly into ~{max(1, n // 20)}-{max(1, n // 5)} samples per chunk "
+              f"depending on your per-run walltime budget.")
+
+    # ---- Phase: evaluate-chunk ----
+    # One call per SLURM array task. Each task independently evaluates only
+    # its shard of the sample matrix and writes its own chunk file — this is
+    # the actual cross-node parallelization axis. --n-jobs only threads
+    # across cores within this single task/node.
+    elif args.mode == 'evaluate-chunk':
+        if not os.path.exists(samples_file):
+            raise FileNotFoundError(
+                f"{samples_file} not found — run --mode sample first (once) "
+                f"before submitting the evaluate-chunk array job."
+            )
+        param_values = np.load(samples_file)
+        evaluate_chunk(param_values,
+                       n_chunks=args.n_chunks,
+                       chunk_index=args.chunk_index,
+                       n_jobs=args.n_jobs,
+                       n_replicates=args.n_replicates,
+                       output_dir=args.output_dir)
+
+    # ---- Phase: merge ----
+    # Run once after all array tasks finish. Stitches chunk_*.npz files back
+    # into a single checkpoint_N{N}.npy in the same format --mode full uses,
+    # so --mode analyze (or --skip-eval under --mode full) can read it.
+    elif args.mode == 'merge':
+        if not os.path.exists(samples_file):
+            raise FileNotFoundError(f"{samples_file} not found — run --mode sample first.")
+        param_values = np.load(samples_file)
+        merge_chunks(n_samples=len(param_values),
+                    n_chunks=args.n_chunks,
+                    output_dir=args.output_dir,
+                    checkpoint_file=checkpoint)
+
+    # ---- Phase: analyze ----
+    # Run once, after merge. Loads the merged checkpoint and produces the
+    # Sobol indices, heatmaps, rankings, and identifiability summary.
+    elif args.mode == 'analyze':
+        if not (os.path.exists(samples_file) and os.path.exists(checkpoint)):
+            raise FileNotFoundError(
+                f"Need both {samples_file} and {checkpoint} — run --mode sample, "
+                f"then evaluate-chunk for all shards, then --mode merge, before --mode analyze."
+            )
+        param_values = np.load(samples_file)
         Y = np.load(checkpoint)
+        all_indices = run_sobol_analysis(param_values, Y, output_dir=args.output_dir)
+        plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='ST')
+        plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='S1')
+        plot_ranking_per_stat(all_indices, output_dir=args.output_dir, top_n=10)
+        summarize_identifiability(all_indices, output_dir=args.output_dir)
+        print(f"\nAll outputs written to: {args.output_dir}/")
+
+    # ---- Phase: full ----
+    # Original single-node behavior: sample -> evaluate (via internal
+    # multiprocessing.Pool) -> analyze -> plot, all in one process. Fine for
+    # small N / a quick local check; use the sharded modes above for the
+    # real HPC run.
     else:
-        Y = evaluate_samples(param_values,
-                             n_jobs=args.n_jobs,
-                             n_replicates=args.n_replicates,
-                             checkpoint_file=checkpoint)
+        param_values = generate_samples(N=args.N, seed=args.seed)
 
-    # Step 3: Sobol analysis
-    all_indices = run_sobol_analysis(param_values, Y, output_dir=args.output_dir)
+        # Only wipe the output dir on a genuinely fresh run — --resume or
+        # --skip-eval need the existing checkpoint to survive so a preempted
+        # HPC job can pick back up instead of losing all completed work.
+        if os.path.exists(args.output_dir) and not (args.resume or args.skip_eval):
+            shutil.rmtree(args.output_dir)
+        os.makedirs(args.output_dir, exist_ok=True)
 
-    # Step 4: Visualize
-    plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='ST')
-    plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='S1')
-    plot_ranking_per_stat(all_indices, output_dir=args.output_dir, top_n=10)
+        if args.skip_eval and os.path.exists(checkpoint):
+            print(f"Loading evaluations from {checkpoint}")
+            Y = np.load(checkpoint)
+        else:
+            Y = evaluate_samples(param_values,
+                                 n_jobs=args.n_jobs,
+                                 n_replicates=args.n_replicates,
+                                 checkpoint_file=checkpoint)
 
-    # Step 5: Identifiability summary
-    summary_df = summarize_identifiability(all_indices, output_dir=args.output_dir)
-
-    print(f"\nAll outputs written to: {args.output_dir}/")
+        all_indices = run_sobol_analysis(param_values, Y, output_dir=args.output_dir)
+        plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='ST')
+        plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='S1')
+        plot_ranking_per_stat(all_indices, output_dir=args.output_dir, top_n=10)
+        summarize_identifiability(all_indices, output_dir=args.output_dir)
+        print(f"\nAll outputs written to: {args.output_dir}/")
