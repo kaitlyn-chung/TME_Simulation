@@ -35,15 +35,19 @@ class CancerCell(Agent):
 
         # Optionally track "age" if needed; not strictly required here:
         self.age = 0
+
+        # ALWAYS draw
+        pdl1_draw = random.gauss(P.PDL1_baseline_mean, P.PDL1_baseline_sd)
+        pdl1_draw = max(0.0, min(1.0, pdl1_draw))
+
         if self.model.pdl1_pd1_axis:
-            self.pdl1 = random.gauss(P.PDL1_baseline_mean, P.PDL1_baseline_sd)
-            self.pdl1 = max(0.0, min(1.0, self.pdl1))
+            self.pdl1 = pdl1_draw
         else:
             self.pdl1 = 0.0
 
     def step(self):
         # Check if agent has a valid position
-        if self.pos is None or not hasattr(self, 'pos'):
+        if not hasattr(self, "pos") or self.pos is None:
             return
             
         x, y = self.pos
@@ -57,11 +61,16 @@ class CancerCell(Agent):
         # Control of IFNg dynamics
         if self.model.pdl1_pd1_axis:
             local_IFNg = self.model.IFNg_field[x, y] # looks at local IFNg signal for upregulation of PDL1
-            pdl1_target = P.PDL1_baseline_mean + P.PDL1_IFNg_max * (
-                local_IFNg / (local_IFNg + P.EC50_IFNg_PDL1)) # use of MM kinetics to determine equilibrium at a give timepoint
-            self.pdl1 += P.k_PDL1_upregulation * (pdl1_target - self.pdl1) * self.model.timestep # gradual increase towards target
-            self.pdl1 += P.k_PDL1_decay * (P.PDL1_baseline_mean - self.pdl1) * self.model.timestep # gradual decrease away from baseline
-            self.pdl1  = max(0.0, min(1.0, self.pdl1))
+            IFNg_signal = local_IFNg / (local_IFNg + P.EC50_IFNg_PDL1) # MM kinetics
+            pdl1_target = P.PDL1_baseline_mean + P.PDL1_IFNg_max * IFNg_signal
+
+            # If upregulated increase PDL1, if downregulated decrease PDL1
+            k = (P.k_PDL1_upregulation 
+                if pdl1_target > self.pdl1 
+                else P.k_PDL1_decay)
+
+            self.pdl1 += k * (pdl1_target - self.pdl1) * self.model.timestep
+            self.pdl1 = max(0.0, min(1.0, self.pdl1))
 
         if self.subtype == CancerSubtype.STEM:
             self._stem_behavior(x, y)
@@ -189,7 +198,7 @@ class CancerCell(Agent):
         If moving, pick one random Moore neighbor and step there if empty.
         """
         # Safety check for valid position
-        if self.pos is None:
+        if not hasattr(self, "pos") or self.pos is None:
             return
             
         # Determine movement probability
@@ -254,6 +263,8 @@ class CD8TCell(Agent):
             self.exhaustion_state = CD8ExhaustionState.CD8TEFFECTOR
         
         self.activation_age = 0.0
+        self.time_since_kill = 1e10   # start ready to kill
+        self.kill_cooldown = P.TCD8_kill_cooldown
 
         # 1) Sample a "death‐time" (seconds) from N(mean, sd), clamp at ≥ 0.
         raw = random.gauss(P.TCD8_lifespanMean, P.TCD8_lifespanSD)
@@ -283,7 +294,7 @@ class CD8TCell(Agent):
          5) (Optional) Attempt to kill any co-located CancerCell via exhaustion‐based kill.
         """
         # Check if agent has a valid position
-        if self.pos is None or not hasattr(self, 'pos'):
+        if not hasattr(self, "pos") or self.pos is None:
             return
             
         x, y = self.pos
@@ -320,42 +331,87 @@ class CD8TCell(Agent):
             mean_IL2 = np.mean(self.model.IL2_field) + 1e-12
 
             IL2_signal = local_IL2 / (local_IL2 + mean_IL2)
-            
             # Activation probability (TCR and IL2-driven)
             combined_signal = tumor_signal * (1 + P.k_cytokine_CD8 * IL2_signal)
 
             p_activate = 1 - math.exp( -self.model.timestep * P.k_TCR_activation * combined_signal)
-
             if random.random() < p_activate:
                 self.diff_state = CD8DiffState.CD8TACTIVATED
-                self.exhaustion_state = CD8ExhaustionState.CD8TEFFECTOR
                 self.activation_age = 0.0
 
         # Activated cell remains activated (driven by commitment delay) before differentiating
         if self.diff_state == CD8DiffState.CD8TACTIVATED:
             self.activation_age += self.model.timestep
+            self.model.IFNg_secretion_map[x, y] += P.IFNg_release * self.model.timestep
 
             if self.activation_age > P.cd8_commitment_delay:
                 if random.random() < P.p_memory_diff:
                     self.diff_state = CD8DiffState.CD8TMEMORY
                 else: # If not being committed to memory, remove cell to represent activation-induced cell death of non-memory precursors
                     self.model.safe_remove_agent(self)
+                    return
 
         # ---- 2) Accumulate IL-2 exposure and attempt division ----
         local_IL2 = self.model.IL2_field[x, y]  # (molecules/µm³)
         self.IL2_accum += local_IL2 * self.model.timestep
 
-        # --- PD-1 upregulation with activation (IL-2 as proxy for antigen stimulation) ---
+        # --- PD-1 upregulation with activation (tumor signal as a proxy for antigen stimulation) ---
         if self.model.pdl1_pd1_axis:
-            self.pd1 = min(1.0, self.pd1 + P.k_PD1_upregulation * local_IL2 * self.model.timestep)
-            # Slow decay back toward baseline when unstimulated
-            self.pd1 = max(P.PD1_baseline, self.pd1 - P.k_PD1_decay * self.model.timestep)
-            self.exhaustion_level += P.k_exhaustion_rate * (
-                self.exhaustion_signal - self.exhaustion_level
-            ) * self.model.timestep
+            # PD1 Expression
+            if self.diff_state == CD8DiffState.CD8TNAIVE:
+                pd1_target = P.PD1_baseline
 
-        self.exhaustion_level = max(0.0, min(1.0, self.exhaustion_level))
-        self._update_exhaustion_state()
+            elif self.diff_state == CD8DiffState.CD8TACTIVATED:
+                pd1_target = 1.0
+
+            else:  # memory
+                pd1_target = 0.5
+
+            self.pd1 += (
+                P.k_PD1_upregulation
+                * (pd1_target - self.pd1)
+                * self.model.timestep
+            )
+
+            self.pd1 = np.clip(self.pd1, P.PD1_baseline, 1.0)
+
+            # Chronic PD1 signaling from neighboring cancer cells drives exhaustion
+            if self.diff_state != CD8DiffState.CD8TNAIVE:
+                
+                chronic_signal = 0.0
+
+                neighbors = self.model.grid.get_neighborhood(
+                                                    self.pos,
+                                                    moore=True,
+                                                    include_center=False
+                                                )
+
+                for nx, ny in neighbors:
+
+                    occupant = self.model.grid[nx][ny]
+
+                    if (isinstance(occupant, CancerCell) and occupant.alive):
+                        chronic_signal += occupant.pdl1
+                
+                # Exhaustion signal
+                self.exhaustion_signal += (
+                                P.k_PD1_signaling
+                                * self.pd1
+                                * chronic_signal
+                                - P.k_exhaustion_recovery
+                                * self.exhaustion_signal
+                            ) * self.model.timestep
+                
+                self.exhaustion_signal = np.clip(self.exhaustion_signal, 0.0, 1.0)
+
+                # Exhaustion level 
+                self.exhaustion_level += (P.k_exhaustion_rate
+                                            * (self.exhaustion_signal - self.exhaustion_level)
+                                            * self.model.timestep)
+                
+                self.exhaustion_level = np.clip(self.exhaustion_level, 0.0, 1.0)
+                
+                self._update_exhaustion_state() 
 
         # Check if we have enough IL-2 exposure AND enough time since last division
         # AND haven't exceeded division limit.
@@ -403,6 +459,7 @@ class CD8TCell(Agent):
 
         # ---- 5) Attempt to kill co-located cancer cells ----
         if self.pos is not None:
+            self.time_since_kill += self.model.timestep
             self._attempt_kill()
 
     def advance(self):
@@ -443,6 +500,8 @@ class CD8TCell(Agent):
         if hasattr(self, "exhaustion_state"):
             daughter.exhaustion_state = self.exhaustion_state
             daughter.exhaustion_level = self.exhaustion_level
+            daughter.exhaustion_signal = self.exhaustion_signal
+            daughter.pd1 = self.pd1
 
         self.model.grid.place_agent(daughter, new_pos)
         self.model.schedule.add(daughter)
@@ -452,7 +511,7 @@ class CD8TCell(Agent):
         self.divisions_done += 1
         self.last_div_tick = self.model.schedule.time
 
-    def _choose_weighted_position(self, neighbors, field):
+    def _choose_weighted_position(self, neighbors):
         weights = []
         cx, cy = self.pos
 
@@ -461,10 +520,21 @@ class CD8TCell(Agent):
                 weights.append(0.0)
                 continue
 
-            val = field[nx, ny]
-            current = field[cx, cy]
+            n_tumor = 0
 
-            weights.append(max(0.0, val - current))
+            # Looks around candidate positions
+            local_neigh = self.model.grid.get_neighborhood((nx, ny), moore=True, include_center=True)
+
+            for tx, ty in local_neigh:
+                if not (0 <= tx < self.model.width and 0 <= ty < self.model.height):
+                    continue
+
+                occupant = self.model.grid[tx][ty]
+
+                if isinstance(occupant, CancerCell) and occupant.alive:
+                    n_tumor += 1
+
+            weights.append(n_tumor + 1e-6)
 
         total = sum(weights)
 
@@ -478,7 +548,7 @@ class CD8TCell(Agent):
         Move towards IFNg field if high concentration, otherwise random:
          If no empty neighbors, do not move.
         """
-        if self.pos is None:
+        if not hasattr(self, "pos") or self.pos is None:
             return
             
         neighbors = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
@@ -486,77 +556,119 @@ class CD8TCell(Agent):
         if not empty:
             return
         
-        new_pos = self._choose_weighted_position(empty, self.model.IFNg_field)
+        new_pos = self._choose_weighted_position(empty)
         
         self.model.grid.move_agent(self, new_pos)
         self.pos = new_pos
 
     def _attempt_kill(self):
+        if not hasattr(self, "pos") or self.pos is None:
+            return
+
         if self.diff_state == CD8DiffState.CD8TNAIVE:
-            return  # Naive cells do not kill
+            return
 
-        x, y = self.pos
-        tcell_neigh_coords = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
-        any_pdl1_contact = False
-        for cx, cy in tcell_neigh_coords:
-            # Check bounds
-            if not (0 <= cx < self.model.width and 0 <= cy < self.model.height):
+        # ---- Compute effective cooldown ----
+        effective_cooldown = self.kill_cooldown
+
+        if self.diff_state == CD8DiffState.CD8TMEMORY:
+            effective_cooldown *= 4
+
+        if self.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
+            effective_cooldown *= (1 + 2*self.exhaustion_level)
+
+        # ---- Enforce cooldown ----
+        if self.time_since_kill < effective_cooldown:
+            return
+
+        # ---- Find ONE target ----
+        neighbors = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
+
+        targets = []
+        for cx, cy in neighbors:
+            if 0 <= cx < self.model.width and 0 <= cy < self.model.height:
+                target = self.model.grid[cx][cy]
+                if isinstance(target, CancerCell) and target.alive:
+                    targets.append(target)
+
+        if not targets:
+            return
+
+        target = random.choice(targets)
+        tx, ty = target.pos
+
+        # ---- Count neighbors of tumor and PD1 signal ----
+        cancer_neigh = self.model.grid.get_neighborhood((tx, ty), moore=True, include_center=False)
+        
+        N_CD8 = 0
+        N_MDSC = 0
+        N_M2 = 0
+        N_totNeighbor = len(cancer_neigh)
+
+        for nx, ny in cancer_neigh:
+            if not (0 <= nx < self.model.width and 0 <= ny < self.model.height):
                 continue
-                
-            target = self.model.grid[cx][cy]
-            if isinstance(target, CancerCell) and target.alive:
-                
-                # Count CD8 and MDSCs in target cell neighborhood
-                cancer_neigh = self.model.grid.get_neighborhood((cx, cy), moore=True, include_center=False)
-                N_CD8 = 0
-                N_MDSC = 0
-                N_totNeighbor = len(cancer_neigh)
 
-                for nx, ny in cancer_neigh:
-                    if not (0 <= nx < self.model.width and 0 <= ny < self.model.height):
-                        continue
-                    occupant = self.model.grid[nx][ny]
-                    if isinstance(occupant, CD8TCell) and occupant.alive:
-                        N_CD8 += 1
-                    elif isinstance(occupant, MDSC) and occupant.alive:
-                        N_MDSC += 1
+            occupant = self.model.grid[nx][ny]
 
-                ## Compute probability of killing
-                local_Arg1 = self.model.Arg1_field[x, y]
-                local_NO = self.model.NO_field[x, y] 
-                H_MDSC = 1.0 / (1.0 + (N_MDSC / P.k_hill_MDSC_TCD8)**P.n_hill_MDSC_TCD8) # Hill-inhibition of killing by MDSC
-                H_Arg1 = local_Arg1 / (local_Arg1 + P.IC50_Arg1_TCD8) # Hill-inhibition by Arg1, n=1
-                H_NO = local_NO / (local_NO + P.IC50_NO_TCD8)  # Hill-inhibition by NO, n=1 
+            if isinstance(occupant, CD8TCell) and occupant.alive:
+                N_CD8 += 1
+            elif isinstance(occupant, MDSC) and occupant.alive:
+                N_MDSC += 1
+            elif isinstance(occupant, Macrophage) and occupant.alive and occupant.subtype == MacSubtype.M2:
+                N_M2 += 1  # M2 macrophages contribute to suppression
 
-                # --- PD-1:PD-L1 contact signaling ---
-                if self.model.pdl1_pd1_axis:
-                    pdl1_signal = self.pd1 * target.pdl1
-                    if pdl1_signal > P.PD1_signal_threshold:
-                        any_pdl1_contact = True
-                    self.exhaustion_signal = min(1.0,
-                        self.exhaustion_signal + P.k_PD1_signaling * pdl1_signal * self.model.timestep)
+        frac_CD8 = N_CD8 / float(N_totNeighbor) if N_totNeighbor > 0 else 0.0
+        frac_M2 = N_M2 / float(N_totNeighbor) if N_totNeighbor > 0 else 0.0
 
-                H_PD1 = self.exhaustion_level if self.model.pdl1_pd1_axis else 0.0
-                alpha = (P.k_TCD8_killing
-                        * (N_CD8 / float(N_totNeighbor))
-                        * (1.0 - H_MDSC)
-                        * (1.0 - H_Arg1)
-                        * (1.0 - H_NO)
-                        * (1.0 - H_PD1)) 
-                if self.diff_state == CD8DiffState.CD8TACTIVATED:
-                    alpha *= 2.0 # High chance to kill
-                if self.exhaustion_state == CD8ExhaustionState.CD8TEFFECTOR:
-                    alpha *= 1.5 # High chance to kill
-                if self.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
-                    alpha *= 0.25 # Reduced ability to kill
+        # ---- Local suppression ----
+        x, y = self.pos
+        # local_Arg1 = self.model.Arg1_field[x, y]
 
-                p_kill = 1.0 - math.exp(-self.model.timestep * alpha)
-                
-                if random.random() < p_kill:
-                    target.alive = False
-                    self.model.safe_remove_agent(target)
-        if not any_pdl1_contact:
-            self.exhaustion_signal = max(0.0, self.exhaustion_signal - P.k_exhaustion_recovery * self.model.timestep)
+        # print(f"Mean: {np.mean(self.model.Arg1_field)}, Max: {np.max(self.model.Arg1_field)}")
+
+        # local_NO   = self.model.NO_field[x, y]
+
+        # local_NO, local_Arg1 = [x if np.isfinite(x) else 0.0 for x in (local_NO, local_Arg1)]
+
+        # H_Arg1 = local_Arg1 / (local_Arg1 + P.IC50_Arg1_TCD8)
+
+        # H_NO   = local_NO   / (local_NO   + P.IC50_NO_TCD8)
+
+        H_MDSC = N_MDSC / (N_MDSC**P.n_hill_MDSC_TCD8 + P.k_hill_MDSC_TCD8**P.n_hill_MDSC_TCD8)
+
+        H_PD1 = self.exhaustion_level if self.model.pdl1_pd1_axis else 0.0
+        # print(f"MDSC: {H_MDSC}")
+        # print(f"Arg1: {H_Arg1}")
+        # print(f"NO: {H_NO}")
+        # print(f"PD1: {H_PD1}")
+
+        # ---- Killing rate ----
+        alpha = (frac_CD8
+            * frac_M2
+            # * (1.0 - H_MDSC)
+            # * (1.0 - H_Arg1)
+            # * (1.0 - H_NO)
+            * (1.0 - H_PD1)
+        )
+        # print(f"Killing rate: {alpha}")
+        if self.diff_state == CD8DiffState.CD8TACTIVATED:
+            alpha *= 2.0
+
+        if self.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
+            alpha *= 0.25
+        
+        # print(f"Effective killing rate: {alpha}")
+        p_kill = 1.0 - math.exp(-self.model.timestep * alpha)
+
+        # print(f"Probability of killing a cancer cell {p_kill}")
+
+        if random.random() < p_kill:
+            target.alive = False
+            self.model.kill_counter += 1
+            self.model.safe_remove_agent(target)
+            self.time_since_kill = 0.0
+            return
 
 class CD4DiffState(Enum):
     CD4THELPER = auto()
@@ -604,7 +716,7 @@ class CD4TCell(Agent):
         self.alive = True
 
     def step(self):
-        if self.pos is None:
+        if not hasattr(self, "pos") or self.pos is None:
             return
         x, y = self.pos
 
@@ -708,7 +820,7 @@ class CD4TCell(Agent):
         elif self.diff_state == CD4DiffState.CD4TREG:
             # Treg secretes IL10, Arg1 and TGFb
             self.model.IL10_secretion_map[x, y] += P.IL10_release_Treg * self.model.timestep
-            self.model.Arg1_secretion_map[x, y] += P.Arg1_release * self.model.timestep
+            # self.model.Arg1_secretion_map[x, y] += P.Arg1_release * self.model.timestep
             self.model.TGFb_secretion_map[x, y] += P.TGFb_release_Treg * self.model.timestep
 
         # ---- 5) Migration (random walk) ----
@@ -780,7 +892,7 @@ class MDSC(Agent):
     MDSC agent with:
       - Pre‐sampled lifespan (Normal draw).
       - Constant Arg1, NO, IL10 secretion.
-      - Fixed‐probability migration (no chemotaxis).
+      - Migrates to CCL2 gradient (chemotaxis) with probability p_move.
     """
 
     def __init__(self, unique_id, model, pos):
@@ -796,6 +908,8 @@ class MDSC(Agent):
         self.alive = True
 
     def step(self):
+        if not hasattr(self, "pos") or self.pos is None:
+            return
         x, y = self.pos
 
         # ---- 1) Age-based death ----
@@ -886,6 +1000,8 @@ class Macrophage(Agent):
         self.alive = True
 
     def step(self):
+        if not hasattr(self, "pos") or self.pos is None:
+            return
         x, y = self.pos
 
         # --- 1) Age‐based death ---
@@ -921,6 +1037,8 @@ class Macrophage(Agent):
         pass
             
     def _polarization(self):
+        if not hasattr(self, "pos") or self.pos is None:
+            return
         x, y = self.pos
         dt = self.model.timestep
         
@@ -958,6 +1076,8 @@ class Macrophage(Agent):
                 return
 
     def _attempt_kill(self):
+        if not hasattr(self, "pos") or self.pos is None:
+            return
         x, y = self.pos
         M1_neigh_coords = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
         
