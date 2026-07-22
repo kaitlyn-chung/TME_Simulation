@@ -23,9 +23,8 @@ class CancerCell(Agent):
       After CancerCell_progDivMax divisions, a progenitor becomes SENESCENT.
     - SENESCENT cells do not divide; they die at rate CancerCell_senescentDeathRate.
     """
-    def __init__(self, unique_id, model, pos, subtype=CancerSubtype.STEM):
+    def __init__(self, unique_id, model, subtype=CancerSubtype.STEM):
         super().__init__(unique_id, model)
-        self.pos = pos
         self.subtype = subtype
         self.alive = True
 
@@ -180,7 +179,7 @@ class CancerCell(Agent):
             return
 
         new_pos = random.choice(empty)
-        daughter = CancerCell(self.model._next_id(), self.model, new_pos, subtype=subtype)
+        daughter = CancerCell(self.model._next_id(), self.model, subtype=subtype)
 
         # Daughter inherits the same PDL1 expressions as parent
         daughter.pdl1 = max(0.0, min(1.0, random.gauss(self.pdl1, P.PDL1_baseline_sd * 0.5)))
@@ -223,7 +222,6 @@ class CancerCell(Agent):
         # Choose one empty neighbor at random and move there
         new_pos = random.choice(empty_neighbors)
         self.model.grid.move_agent(self, new_pos)
-        self.pos = new_pos
     
 class CD8DiffState(Enum):
     CD8TNAIVE = auto()
@@ -246,9 +244,8 @@ class CD8TCell(Agent):
       - Fixed‐probability migration (no chemotaxis).
     """
 
-    def __init__(self, unique_id, model, pos, diff_state=None, exhaustion_state=None):
+    def __init__(self, unique_id, model, diff_state=None, exhaustion_state=None):
         super().__init__(unique_id, model)
-        self.pos = pos
 
         # Initialize diff_state as naive if not provided (new cell)
         if diff_state is None:
@@ -688,9 +685,8 @@ class CD4TCell(Agent):
       - Fixed‐probability migration (no chemotaxis).
     """
 
-    def __init__(self, unique_id, model, pos, diff_state=None):
+    def __init__(self, unique_id, model, diff_state=None):
         super().__init__(unique_id, model)
-        self.pos = pos
 
         # Initial state
         if diff_state is None:
@@ -895,9 +891,8 @@ class MDSC(Agent):
       - Migrates to CCL2 gradient (chemotaxis) with probability p_move.
     """
 
-    def __init__(self, unique_id, model, pos):
+    def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
-        self.pos = pos
 
         # 1) Sample a lifespan (seconds) from Normal(mean, sd), clamp at ≥ 0
         raw = random.gauss(P.MDSC_lifespanMean, P.MDSC_lifespanSD)
@@ -981,9 +976,8 @@ class Macrophage(Agent):
       6) Moves randomly with probability 0.5 per tick
     """
 
-    def __init__(self, unique_id, model, pos, subtype=None):
+    def __init__(self, unique_id, model, subtype=None):
         super().__init__(unique_id, model)
-        self.pos = pos
 
         # 1) Assign subtype: default to M1 unless specified
         if subtype is None:

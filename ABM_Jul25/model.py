@@ -166,6 +166,7 @@ class ABM_Model(Model):
         )
 
         self.running = True
+        self.kill_counter = 0 
 
     def count_agents(self, agent_type):
         """
@@ -486,7 +487,7 @@ class ABM_Model(Model):
                 break
             if not self.grid.is_cell_empty(pos):
                 continue
-            cancer = CancerCell(self._next_id(), self, pos)
+            cancer = CancerCell(self._next_id(), self)
             self.grid.place_agent(cancer, pos)
             self.schedule.add(cancer)
             placed += 1
@@ -500,7 +501,7 @@ class ABM_Model(Model):
         # --- b) CD8+ T cells ---
         for _ in range(min(initial_CD8Tcells, len(all_positions))):
             pos = all_positions.pop()
-            cd8tcell = CD8TCell(self._next_id(), self, pos)
+            cd8tcell = CD8TCell(self._next_id(), self)
             self.grid.place_agent(cd8tcell, pos)
             self.schedule.add(cd8tcell)
     
@@ -514,13 +515,13 @@ class ABM_Model(Model):
         # --- d) MDSCs ---
         for _ in range(min(initial_MDSC, len(all_positions))):
             pos = all_positions.pop()
-            mdsc = MDSC(self._next_id(), self, pos)
+            mdsc = MDSC(self._next_id(), self)
             self.grid.place_agent(mdsc, pos)
             self.schedule.add(mdsc)
     
         # --- e) Macrophages (M1 by default) ---
         for _ in range(min(initial_macrophages, len(all_positions))):
             pos = all_positions.pop()
-            mac = Macrophage(self._next_id(), self, pos, subtype=MacSubtype.M1)
+            mac = Macrophage(self._next_id(), self, subtype=MacSubtype.M1)
             self.grid.place_agent(mac, pos)
             self.schedule.add(mac)
