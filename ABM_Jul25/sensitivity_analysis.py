@@ -51,62 +51,65 @@ import ABM_Jul25.params as P
 #
 # NOTE: diffusion coefficients, decay rates, molecular weights, and mass-based
 # release rates are excluded — those are fixed by biophysics/literature, not
-# fitted behavioral parameters. Uncomment/add rows below to expand the sweep;
-# just make sure the name matches params.py exactly (a mismatch raises a
-# clear warning below rather than failing silently).
+# fitted behavioral parameters.
 
 PARAM_SPECS = [
     # --- Cancer cell kinetics ---
     ('CancerCell_stemGrowthRate',      0.5,  0.0,  None, False),
-    # ('CancerCell_asymDivProb',         0.15, 0.7,  1.0,  False),
-    # ('CancerCell_progGrowthRate',      0.5,  0.0,  None, False),
-    # ('CancerCell_progDivMax',          0.5,  2,    15,   True),
-    # ('CancerCell_senescentDeathRate',  0.5,  0.0,  None, False),
-    # ('CancerCell_stemMoveProb',        0.3,  0.0,  1.0,  False),
+    ('CancerCell_asymDivProb',         0.15, 0.7,  1.0,  False),
+    ('CancerCell_progGrowthRate',      0.5,  0.0,  None, False),
+    ('CancerCell_progDivMax',          0.5,  2,    15,   True),
+    ('CancerCell_senescentDeathRate',  0.5,  0.0,  None, False),
+    ('CancerCell_stemMoveProb',        0.3,  0.0,  1.0,  False),
 
-    # # --- CD8 T cell kinetics ---
-    # ('TCD8_prolif_IL2th',              0.5,  0.0,  None, False),
-    # ('TCD8_div_Interval',              0.5,  0.0,  None, False),
-    # ('TCD8_div_limit_effector',        0.5,  2,    20,   True),
-    # ('TCD8_div_limit_memory',          0.5,  1,    10,   True),
-    # ('k_TCR_activation',               0.5,  0.0,  None, False),
-    # ('k_cytokine_CD8',                 0.5,  0.0,  None, False),
-    # ('k_hill_MDSC_TCD8',               0.5,  1,    6,    True),
+    # --- CD8 T cell kinetics ---
+    ('cd8_commitment_delay',           0.5,  0.0,  None, False),
+    ('TCD8_prolif_IL2th',              0.5,  0.0,  None, False),
+    ('TCD8_div_Interval',              0.5,  0.0,  None, False),
+    ('TCD8_div_limit_effector',        0.5,  2,    20,   True),
+    ('TCD8_div_limit_memory',          0.5,  1,    10,   True),
+    ('k_TCR_activation',               0.5,  0.0,  None, False),
+    ('k_cytokine_CD8',                 0.5,  0.0,  None, False),
+    ('k_hill_MDSC_TCD8',               0.5,  1,    6,    True),
 
-    # # --- CD4 T cell kinetics ---
-    # ('TCD4_Treg_frac',                 0.5,  0.0,  1.0,  False),
-    # ('k_TCD4_div',                     0.5,  0.0,  None, False),
-    # ('EC50_Arg1_Treg',                 0.5,  0.0,  None, False),
-    # ('k_Arg1_Treg_div',                0.5,  0.0,  None, False),
+    # --- CD4 T cell kinetics ---
+    ('cd4_commitment_delay',           0.5,  0.0,  None, False),  
+    ('TCD4_Treg_frac',                 0.5,  0.0,  1.0,  False),
+    ('k_TCD4_div',                     0.5,  0.0,  None, False),
+    ('TCD4_k_Th_diff_Treg',            0.5,  0.0,  None, False),
+    ('EC50_Arg1_Treg',                 0.5,  0.0,  None, False),
+    ('TCD4_div_Interval',              0.5,  0.0,  None, False),
+    ('k_Arg1_Treg_div',                0.5,  0.0,  None, False),
 
-    # # --- Macrophage polarization / phagocytosis ---
-    # ('k_Mac_M1_pol',                   0.5,  0.0,  None, False),
-    # ('k_Mac_M2_pol',                   0.5,  0.0,  None, False),
-    # ('EC50_TGFb_M2',                   0.5,  0.0,  None, False),
-    # ('EC50_IL10_M2',                   0.5,  0.0,  None, False),
-    # ('EC50_IFNg_M1',                   0.5,  0.0,  None, False),
-    # ('EC50_IL12_M1',                   0.5,  0.0,  None, False),
-    # ('k_M1_phago',                     0.5,  0.0,  None, False),
-    # ('IC50_IL10_phago',                0.5,  0.0,  None, False),
+    # --- Macrophage polarization / phagocytosis ---
+    ('Mac_moveProb',                   0.5,  0.0,  1.0,  False),      
+    ('k_Mac_M1_pol',                   0.5,  0.0,  None, False),
+    ('k_Mac_M2_pol',                   0.5,  0.0,  None, False),
+    ('EC50_TGFb_M2',                   0.5,  0.0,  None, False),
+    ('EC50_IL10_M2',                   0.5,  0.0,  None, False),
+    ('EC50_IFNg_M1',                   0.5,  0.0,  None, False),
+    ('EC50_IL12_M1',                   0.5,  0.0,  None, False),
+    ('k_M1_phago',                     0.5,  0.0,  None, False),
+    ('IC50_IL10_phago',                0.5,  0.0,  None, False),
 
-    # # --- Recruitment rates ---
-    # ('k_TCD8_rec',                     0.5,  0.0,  None, False),
-    # ('k_TCD4_rec',                     0.5,  0.0,  None, False),
-    # ('k_MDSC_rec_base',                0.5,  0.0,  None, False),
-    # ('k_MDSC_rec_max',                 0.5,  0.0,  None, False),
-    # ('k_Mac_rec',                      0.5,  0.0,  None, False),
-    # ('M1_M2_rec_ratio',                0.3,  0.0,  1.0,  False),
+    # --- Recruitment rates ---
+    ('k_TCD8_rec',                     0.5,  0.0,  None, False),
+    ('k_TCD4_rec',                     0.5,  0.0,  None, False),
+    ('k_MDSC_rec_base',                0.5,  0.0,  None, False),
+    ('k_MDSC_rec_max',                 0.5,  0.0,  None, False),
+    ('k_Mac_rec',                      0.5,  0.0,  None, False),
+    ('M1_M2_rec_ratio',                0.3,  0.0,  1.0,  False),
 
-    # # --- PD-1 / PD-L1 axis ---
-    # ('PDL1_baseline_mean',             0.5,  0.0,  1.0,  False),
-    # ('PDL1_IFNg_max',                  0.3,  0.0,  1.0,  False),
-    # ('k_PDL1_upregulation',            0.5,  0.0,  None, False),
-    # ('k_PD1_upregulation',             0.5,  0.0,  None, False),
-    # ('k_PD1_signaling',                0.5,  0.0,  None, False),
-    # ('k_exhaustion_rate',              0.5,  0.0,  None, False),
-    # ('k_exhaustion_recovery',          0.5,  0.0,  None, False),
-    # ('exhaustion_threshold_eff',       0.3,  0.05, 0.95, False),
-    # ('exhaustion_threshold_term',      0.3,  0.05, 0.95, False),
+    # --- PD-1 / PD-L1 axis ---
+    ('PDL1_baseline_mean',             0.5,  0.0,  1.0,  False),
+    ('PDL1_IFNg_max',                  0.3,  0.0,  1.0,  False),
+    ('k_PDL1_upregulation',            0.5,  0.0,  None, False),
+    ('k_PD1_upregulation',             0.5,  0.0,  None, False),
+    ('k_PD1_signaling',                0.5,  0.0,  None, False),
+    ('k_exhaustion_rate',              0.5,  0.0,  None, False),
+    ('k_exhaustion_recovery',          0.5,  0.0,  None, False),
+    ('exhaustion_threshold_eff',       0.3,  0.05, 0.95, False),
+    ('exhaustion_threshold_term',      0.3,  0.05, 0.95, False),
 ]
 
 
@@ -335,7 +338,7 @@ def generate_samples(N: int = 64, seed: int = 42) -> np.ndarray:
         1-5 min/run:  N=64, use surrogate/emulator afterward
         > 5 min/run:  N=32, strongly consider surrogate model
     """
-    param_values = sobol_sample.sample(problem, N, calc_second_order=True, seed=seed)
+    param_values = sobol_sample.sample(problem, N, calc_second_order=False, seed=seed)
     print(f"Generated {len(param_values)} parameter sets "
           f"(N={N}, {problem['num_vars']} parameters)")
     return param_values
@@ -585,7 +588,7 @@ def run_sobol_analysis(param_values: np.ndarray,
             Si = sobol_analyze.analyze(
                 problem,
                 y_col,
-                calc_second_order=True,
+                calc_second_order=False,
                 print_to_console=False
             )
         except Exception as e:
