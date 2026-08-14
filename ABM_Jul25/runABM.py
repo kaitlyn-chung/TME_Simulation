@@ -28,10 +28,9 @@ from ABM_Jul25.plot_simulation import (run_simulation_verbose,
                                         plot_results_from_csv,
                                         animate_simulation,
                                         pull_keyframes)
+
 import warnings
 warnings.filterwarnings("ignore")
-
-pdl1_pd1_axis = True
 
 # Main execution
 def main():
@@ -81,8 +80,7 @@ def main():
             custom_params=param_inputs,
             print_every=5,
             save_data=True,
-            show_molecules=True,
-            pdl1_pd1_axis=pdl1_pd1_axis
+            show_molecules=True
             )
 
     else:
@@ -92,8 +90,7 @@ def main():
             scenario=choice,
             print_every=5,
             save_data=True,
-            show_molecules=False,
-            pdl1_pd1_axis=pdl1_pd1_axis        
+            show_molecules=False 
         )
     
     # Generate all visualization outputs

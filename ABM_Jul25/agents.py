@@ -39,10 +39,8 @@ class CancerCell(Agent):
         pdl1_draw = random.gauss(P.PDL1_baseline_mean, P.PDL1_baseline_sd)
         pdl1_draw = max(0.0, min(1.0, pdl1_draw))
 
-        if self.model.pdl1_pd1_axis:
-            self.pdl1 = pdl1_draw
-        else:
-            self.pdl1 = 0.0
+        self.pdl1 = pdl1_draw
+
 
     def step(self):
         # Check if agent has a valid position
@@ -58,18 +56,17 @@ class CancerCell(Agent):
         # Consume IFNg
         self.model.IFNg_consumption_map[x, y] += P.IFNg_uptake_cancer * self.model.timestep
         # Control of IFNg dynamics
-        if self.model.pdl1_pd1_axis:
-            local_IFNg = self.model.IFNg_field[x, y] # looks at local IFNg signal for upregulation of PDL1
-            IFNg_signal = local_IFNg / (local_IFNg + P.EC50_IFNg_PDL1) # MM kinetics
-            pdl1_target = P.PDL1_baseline_mean + P.PDL1_IFNg_max * IFNg_signal
+        local_IFNg = self.model.IFNg_field[x, y] # looks at local IFNg signal for upregulation of PDL1
+        IFNg_signal = local_IFNg / (local_IFNg + P.EC50_IFNg_PDL1) # MM kinetics
+        pdl1_target = P.PDL1_baseline_mean + P.PDL1_IFNg_max * IFNg_signal
 
-            # If upregulated increase PDL1, if downregulated decrease PDL1
-            k = (P.k_PDL1_upregulation 
-                if pdl1_target > self.pdl1 
-                else P.k_PDL1_decay)
+        # If upregulated increase PDL1, if downregulated decrease PDL1
+        k = (P.k_PDL1_upregulation 
+            if pdl1_target > self.pdl1 
+            else P.k_PDL1_decay)
 
-            self.pdl1 += k * (pdl1_target - self.pdl1) * self.model.timestep
-            self.pdl1 = max(0.0, min(1.0, self.pdl1))
+        self.pdl1 += k * (pdl1_target - self.pdl1) * self.model.timestep
+        self.pdl1 = max(0.0, min(1.0, self.pdl1))
 
         if self.subtype == CancerSubtype.STEM:
             self._stem_behavior(x, y)
@@ -352,8 +349,12 @@ class CD8TCell(Agent):
         local_IL2 = self.model.IL2_field[x, y]  # (molecules/µm³)
         self.IL2_accum += local_IL2 * self.model.timestep
 
+        self.can_exhaust = False
+        if random.random() < P.how_exhausted:
+            self.can_exhaust = True
+
         # --- PD-1 upregulation with activation (tumor signal as a proxy for antigen stimulation) ---
-        if self.model.pdl1_pd1_axis:
+        if self.can_exhaust:
             # PD1 Expression
             if self.diff_state == CD8DiffState.CD8TNAIVE:
                 pd1_target = P.PD1_baseline
@@ -556,7 +557,6 @@ class CD8TCell(Agent):
         new_pos = self._choose_weighted_position(empty)
         
         self.model.grid.move_agent(self, new_pos)
-        self.pos = new_pos
 
     def _attempt_kill(self):
         if not hasattr(self, "pos") or self.pos is None:
@@ -634,7 +634,7 @@ class CD8TCell(Agent):
 
         H_MDSC = N_MDSC / (N_MDSC**P.n_hill_MDSC_TCD8 + P.k_hill_MDSC_TCD8**P.n_hill_MDSC_TCD8)
 
-        H_PD1 = self.exhaustion_level if self.model.pdl1_pd1_axis else 0.0
+        H_PD1 = self.exhaustion_level
         # print(f"MDSC: {H_MDSC}")
         # print(f"Arg1: {H_Arg1}")
         # print(f"NO: {H_NO}")
@@ -662,7 +662,6 @@ class CD8TCell(Agent):
 
         if random.random() < p_kill:
             target.alive = False
-            self.model.kill_counter += 1
             self.model.safe_remove_agent(target)
             self.time_since_kill = 0.0
             return
@@ -881,7 +880,6 @@ class CD4TCell(Agent):
         
         new_pos = self._choose_weighted_position(empty, self.model.IL2_field)
         self.model.grid.move_agent(self, new_pos)
-        self.pos = new_pos 
 
 class MDSC(Agent):
     """
@@ -958,7 +956,6 @@ class MDSC(Agent):
             return
         new_pos = self._choose_weighted_position(empty, self.model.CCL2_field)
         self.model.grid.move_agent(self, new_pos)
-        self.pos = new_pos
 
 
 class MacSubtype(Enum):
@@ -1146,4 +1143,3 @@ class Macrophage(Agent):
             new_pos = self._choose_weighted_position(empty, self.model.TGFb_field)
 
         self.model.grid.move_agent(self, new_pos)
-        self.pos = new_pos

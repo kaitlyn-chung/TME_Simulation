@@ -91,7 +91,6 @@ class ABM_Model(Model):
         initial_CD4Tcells: int = 30,
         initial_macrophages: int = 30,
         initial_MDSC: int = 10,
-        pdl1_pd1_axis: bool = True 
     ):
     
         super().__init__()
@@ -100,8 +99,6 @@ class ABM_Model(Model):
         self.timestep = P.timestep
     
         self._current_id = 0
-
-        self.pdl1_pd1_axis = pdl1_pd1_axis
 
         # 1) Create a SingleGrid: each grid contains only one cell
         self.grid = SingleGrid(width, height, torus=False)
@@ -166,7 +163,6 @@ class ABM_Model(Model):
         )
 
         self.running = True
-        self.kill_counter = 0 
 
     def count_agents(self, agent_type):
         """
@@ -316,10 +312,7 @@ class ABM_Model(Model):
                 # (implicitly, if u < 1.0 it falls into MDSC interval next)
         
                 if u < threshold_cd8:
-                    new_cd8 = CD8TCell(
-                        self._next_id(), self, (x, y),
-                        diff_state=CD8DiffState.CD8TACTIVATED
-                    )
+                    new_cd8 = CD8TCell(self._next_id(), self, diff_state=CD8DiffState.CD8TACTIVATED)
 
                     self.grid.place_agent(new_cd8, (x, y))
                     self.schedule.add(new_cd8)
@@ -327,24 +320,24 @@ class ABM_Model(Model):
                 elif u < threshold_cd4:
                     # recruit CD4 (20% chance Treg, 80% Thelper)
                     if random.random() < P.TCD4_Treg_frac:
-                        new_cd4 = CD4TCell(self._next_id(), self, (x, y), diff_state=CD4DiffState.CD4TREG)
+                        new_cd4 = CD4TCell(self._next_id(), self, diff_state=CD4DiffState.CD4TREG)
                     else:
-                        new_cd4 = CD4TCell(self._next_id(), self, (x, y), diff_state=CD4DiffState.CD4THELPER)
+                        new_cd4 = CD4TCell(self._next_id(), self, diff_state=CD4DiffState.CD4THELPER)
                     self.grid.place_agent(new_cd4, (x, y))
                     self.schedule.add(new_cd4)
         
                 elif u < threshold_mac:
                     # recruit Macrophage (based on 1.3:1 M1:M2 recruitment ratio)
                     if random.random() < P.M1_M2_rec_ratio:
-                        new_mac = Macrophage(self._next_id(), self, (x, y), subtype=MacSubtype.M2)
+                        new_mac = Macrophage(self._next_id(), self, subtype=MacSubtype.M2)
                     else:
-                        new_mac = Macrophage(self._next_id(), self, (x, y), subtype=MacSubtype.M1)
+                        new_mac = Macrophage(self._next_id(), self, subtype=MacSubtype.M1)
                     self.grid.place_agent(new_mac, (x, y))
                     self.schedule.add(new_mac)
         
                 else:
                     # recruit MDSC
-                    new_mdsc = MDSC(self._next_id(), self, (x, y))
+                    new_mdsc = MDSC(self._next_id(), self)
                     self.grid.place_agent(new_mdsc, (x, y))
                     self.schedule.add(new_mdsc)
 
@@ -508,7 +501,7 @@ class ABM_Model(Model):
         # --- c) CD4+ T cells ---
         for _ in range(min(initial_CD4Tcells, len(all_positions))):
             pos = all_positions.pop()
-            cd4tcell = CD4TCell(self._next_id(), self, pos)
+            cd4tcell = CD4TCell(self._next_id(), self)
             self.grid.place_agent(cd4tcell, pos)
             self.schedule.add(cd4tcell)
     

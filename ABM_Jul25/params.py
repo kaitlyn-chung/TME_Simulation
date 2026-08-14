@@ -89,7 +89,7 @@ VEGFA_uptake = 5e-5 # VEGFA uptake by endothelial cells
 IFNg_uptake_cancer = 0.001 # IFNg consumption by cancer cells
 
 # Cancer Cell parameters
-CancerCell_stemGrowthRate = (69/365)/(24*3600) # = 0.18/day originally, 2.9e-6 /sec = 0.25/day, stem cell growth rate
+CancerCell_stemGrowthRate = (69/365)/(24*3600) # = 0.18/day: originally 2.9e-6 /sec = 0.25/day, stem cell growth rate
 CancerCell_asymDivProb = 0.95 # probability of cancer stem cell asymmetric division
 CancerCell_progGrowthRate = 5.8e-6 # /sec = 0.5/day, progenitor growth rate
 CancerCell_progDivMax = 6 # max divisions of progenitor
@@ -108,7 +108,7 @@ TCD8_prolif_IL2th = TCD8_prolif_IL2th_mass * 1.25e-10 * Avogadro_No / MW_IL2 # s
 TCD8_div_Interval = 43200 # sec = 12h
 TCD8_div_limit_effector = 8 # higher division limit for clonal expansion
 TCD8_div_limit_memory = 4
-k_TCD8_killing = 1.16e-5 # cell/sec = 1 cell/day
+# k_TCD8_killing = 1.16e-5 # cell/sec = 1 cell/day
 k_TCR_activation = 1e-4 # 1/(molecules/grid * sec), used for both CD8 and CD4, activation within a few hours
 k_cytokine_CD8 = 1e-5 # 1/sec, rate of becoming fully active once TCR signal is above threshold
 TCD8_kill_cooldown = 2*3600 # sec, two hours to cooldown
@@ -116,11 +116,11 @@ TCD8_kill_cooldown = 2*3600 # sec, two hours to cooldown
 # Coefficients in Hill function of TCD8 inhibition
 k_hill_MDSC_TCD8 = 2 # Half‐maximal inhibition = 2 MDSCs in neighborhood
 n_hill_MDSC_TCD8 = 1 # no cooperative inhibition
-IC50_Arg1_TCD8 = 5.3e+11 # molecules = 61.7 mU
-IC50_NO_TCD8 = 7.5e-10 * 1.25e-10 * Avogadro_No # molecules = 7.5e-10 M
+# IC50_Arg1_TCD8 = 5.3e+11 # molecules = 61.7 mU
+# IC50_NO_TCD8 = 7.5e-10 * 1.25e-10 * Avogadro_No # molecules = 7.5e-10 M
 
 # CD4T Cell parameters
-init_naive_frac = 0.05 # check this value
+# init_naive_frac = 0.05 # check this value
 cd4_commitment_delay = 3*24*3600 # sec = 3 days
 k_cytokine_CD4 = 1e-5 # 1/sec, rate of becoming fully active once TCR signal is above threshold
 TCD4_lifespanMean = 47*24*3600 # sec = 1.29 days
@@ -181,7 +181,9 @@ k_PD1_decay             = 1e-6        # 1/sec, decay when unstimulated
 k_PD1_signaling         = 2e-5        # 1/sec, exhaustion signal accumulation rate
 k_exhaustion_rate       = 1e-5        # 1/sec, exhaustion_level tracks signal
 k_exhaustion_recovery   = 5e-7        # 1/sec, partial recovery rate
-PD1_signal_threshold    = 0.05        # signal floor below which recovery activates
+# PD1_signal_threshold    = 0.05        # signal floor below which recovery activates
 
 exhaustion_threshold_eff = 0.3
 exhaustion_threshold_term = 0.70
+
+how_exhausted = 0.8
