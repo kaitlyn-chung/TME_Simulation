@@ -626,7 +626,6 @@ class CD8TCell(Agent):
             #     N_M1 += 1  # M1 macrophages contribute to tumor killing
 
         frac_CD8 = N_CD8 / float(N_totNeighbor) if N_totNeighbor > 0 else 0.0
-        print("Fraction of CD8: ", frac_CD8)
         # frac_M1 = N_M1 / float(N_totNeighbor) if N_totNeighbor > 0 else 0.0
 
         # ---- Local suppression ----
@@ -644,7 +643,6 @@ class CD8TCell(Agent):
         # H_MDSC = N_MDSC / (N_MDSC**P.n_hill_MDSC_TCD8 + P.k_hill_MDSC_TCD8**P.n_hill_MDSC_TCD8)
 
         H_PD1 = self.exhaustion_level
-        print("PD1 exhaustion_level:", H_PD1)
 
         # # ---- Killing rate ----
         p_kill = (frac_CD8
@@ -662,10 +660,7 @@ class CD8TCell(Agent):
         if self.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
             p_kill *= 0.25
         
-        # print(f"Effective killing rate: {alpha}")
         p_kill = min(p_kill, 1)
-
-        print(f"Probability of killing a cancer cell {p_kill}")
 
         if random.random() < p_kill:
             target.alive = False
@@ -805,15 +800,12 @@ class CD4TCell(Agent):
 
         if self.diff_state == CD4DiffState.CD4THELPER:
             IL2_signal = local_IL2 / (local_IL2 + P.EC50_IL2_Helper)
-            print("="*3)
-            print("IL2 signal for Thelper: ", IL2_signal)
             if self.activation_age > 10*24*3600:
                 p_death = 1 - math.exp(-P.TCD4_death_rate * self.model.timestep)
                 if random.random() < p_death:
                     self.model.safe_remove_agent(self)
                     return
             p_div = 1 - math.exp(-P.k_TCD4_div * self.model.timestep * IL2_signal)
-            print("Proliferation probability for Thelper: ",p_div)
             if (self.time_since_last_div >= P.TCD4_div_Interval
                 and self.divisions_done < P.CD4_DIVISION_LIMIT
                 and random.random() <= p_div
@@ -823,8 +815,6 @@ class CD4TCell(Agent):
                 
         elif self.diff_state == CD4DiffState.CD4TREG:
             IL2_signal = local_IL2 / (local_IL2 + P.EC50_IL2_Treg)
-            print("="*3)
-            print("IL2 signal for Treg: ", IL2_signal)
             if self.activation_age > 20*24*3600:
                 p_death = 1 - math.exp(-P.TCD4_death_rate * self.model.timestep)
                 if random.random() < p_death:
@@ -832,9 +822,7 @@ class CD4TCell(Agent):
                     return
                 
             # Arg1-induced Treg proliferation
-            print("Arg1 signal for Treg: ", Arg1_signal)
             p_div = 1 - math.exp( -P.k_Arg1_Treg_div * self.model.timestep * Arg1_signal * IL2_signal)
-            print("Proliferation probability for Treg: ",p_div)
             if (self.time_since_last_div >= P.TCD4_div_Interval
                 and self.divisions_done < P.CD4_DIVISION_LIMIT
                 and random.random() <= p_div
