@@ -239,11 +239,13 @@ def run_simulation_verbose(
     print(f"\nModel initialized in {init_time:.3f}s")
 
     counts = get_cell_counts(model)
-    frames = []
+    cell_frames = []
+    cytokine_frames = []
     
     # Print the initial step
     print_step_summary(counts, 0)
-    frames.append((0, encode_grid(model)))
+    cell_frames.append((0, encode_grid(model)))
+    cytokine_frames.append((0, capture_cytokine_fields(model)))
     if show_molecules:
         print_molecular_summary(model)
 
@@ -258,12 +260,11 @@ def run_simulation_verbose(
         model.step()
         step_time = time.time() - step_start
         total_step_time += step_time
-
         counts = get_cell_counts(model)
-
         if step % print_every == 0:
             print_step_summary(counts, step, step_time)
-            frames.append((step, encode_grid(model)))
+            cell_frames.append((step, encode_grid(model)))
+            cytokine_frames.append((step, capture_cytokine_fields(model)))
             if show_molecules:
                 print_molecular_summary(model)
 
@@ -276,7 +277,7 @@ def run_simulation_verbose(
             print(f"Reason: No cancer cells remaining")
             print(f"{'!'*60}")
             break
-    
+
     # Final summary
     final_time = time.time() - start_time
     avg_step_time = total_step_time / step if step > 0 else 0
@@ -291,7 +292,7 @@ def run_simulation_verbose(
     counts = get_cell_counts(model)
     print_step_summary(counts, step)
 
-    return model, frames
+    return model, cell_frames, cytokine_frames
 
 ### Visualization functions
 
@@ -333,6 +334,20 @@ GRID_COLORS = [
     COLOR_MAP["M1"],                  # 10
     COLOR_MAP["M2"],                  # 11
 ]
+
+def capture_cytokine_fields(model):
+    signals = [
+        'Arg1', 'CCL2', 'IFNg',
+        'IL2', 'IL10', 'IL12',
+        'NO', 'TGFb', 'VEGFA'
+    ]
+
+    snapshot = {}
+
+    for sig in signals:
+        snapshot[sig] = getattr(model, f"{sig}_field").copy()
+
+    return snapshot
 
 def encode_grid(model):
     grid_map = np.zeros((model.width, model.height), dtype=int)
@@ -458,6 +473,14 @@ def plot_cytokine_concentrations(model, output_dir):
             else:
                 signal_min = np.max([np.min(positive_vals), signal_max * 1e-10])
             
+            print(
+                f"{signal_name}: "
+                f"min={np.nanmin(signal_grid)}, "
+                f"max={np.nanmax(signal_grid)}, "
+                f"nan={np.isnan(signal_grid).sum()}, "
+                f"inf={np.isinf(signal_grid).sum()}"
+            )
+            
             if signal_max > 0:
                 # Use log-normalized colormap if there's significant range
                 if signal_max / signal_min > 100:
@@ -469,6 +492,48 @@ def plot_cytokine_concentrations(model, output_dir):
                                  vmin=0, vmax=signal_max)
             else:
                 im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis")
+
+    for idx, (signal_name, display_name) in enumerate(signals):
+        ax = axes[idx]
+        
+        if hasattr(model, f"{signal_name}_field"):
+            signal_grid = getattr(model, f"{signal_name}_field")
+            
+            # Use log scale for better visualization if values span many orders of magnitude
+            signal_max = np.nanmax(signal_grid)
+            positive_vals = signal_grid[
+                np.isfinite(signal_grid) &
+                (signal_grid > 0)
+            ]
+            if positive_vals.size == 0:
+                signal_min = signal_max * 1e-10
+            else:
+                signal_min = np.max([np.min(positive_vals), signal_max * 1e-10])
+            
+            if signal_max > 0:
+                # Use log-normalized colormap if there's significant range
+                if signal_max / signal_min > 100:
+                    from matplotlib.colors import LogNorm
+                    im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis", 
+                                 norm=LogNorm(vmin=signal_min, vmax=signal_max))
+                else:
+                    im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis",
+                                 vmin=0, vmax=signal_max)
+            else:
+                im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis")
+
+            print(
+                signal_name,
+                np.nanmin(signal_grid),
+                np.nanmax(signal_grid),
+                np.isnan(signal_grid).sum(),
+                np.isinf(signal_grid).sum()
+            )
+            
+            # Add colorbar
+            cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            cbar.set_label('Concentration\n(molecules/grid)', fontsize=8)
+            
             
             # Add colorbar
             cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
@@ -688,7 +753,7 @@ def plot_results_from_csv(csv_file="cell_counts.csv", output_dir="simulation_out
         return None
     return fig 
 
-def animate_simulation(frames, output_dir, interval=200):
+def animate_simulation(cell_frames, output_dir, interval=200):
     fig, ax = plt.subplots(figsize=(6, 6))
 
     cmap = mcolors.ListedColormap(GRID_COLORS)
@@ -696,7 +761,7 @@ def animate_simulation(frames, output_dir, interval=200):
     norm = mcolors.BoundaryNorm(bounds, cmap.N)
 
     # unpack first frame
-    step0, grid0 = frames[0]
+    step0, grid0 = cell_frames[0]
     im = ax.imshow(grid0.T, cmap=cmap, norm=norm, origin="lower")
 
     cbar = plt.colorbar(im, ax=ax, ticks=np.arange(len(GRID_COLORS)), shrink=0.8)
@@ -719,7 +784,7 @@ def animate_simulation(frames, output_dir, interval=200):
     ax.set_title(f"Step {step0}")
 
     def update(frame_idx):
-        step, grid = frames[frame_idx]
+        step, grid = cell_frames[frame_idx]
         im.set_data(grid.T)
         ax.set_title(f"Step {step}")
         return [im]
@@ -727,7 +792,7 @@ def animate_simulation(frames, output_dir, interval=200):
     anim = animation.FuncAnimation(
         fig,
         update,
-        frames=len(frames),
+        frames=len(cell_frames),
         interval=interval,
         blit=False
     )
@@ -737,7 +802,7 @@ def animate_simulation(frames, output_dir, interval=200):
 
     return anim
 
-def pull_keyframes(frames, output_dir):
+def pull_keyframes(cell_frames, output_dir):
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), constrained_layout=True)
 
@@ -747,8 +812,8 @@ def pull_keyframes(frames, output_dir):
     norm = mcolors.BoundaryNorm(bounds, cmap.N)
 
     idx0 = 0
-    idx_mid = len(frames) // 2
-    idx_final = len(frames) - 1
+    idx_mid = len(cell_frames) // 2
+    idx_final = len(cell_frames) - 1
 
     keyframes = [
         (idx0, "Initial"),
@@ -759,7 +824,7 @@ def pull_keyframes(frames, output_dir):
     ims = []
 
     for ax, (idx, title) in zip(axes, keyframes):
-        step, grid = frames[idx]
+        step, grid = cell_frames[idx]
 
         im = ax.imshow(grid.T, cmap=cmap, norm=norm, origin="lower")
         ax.set_title(f"{title} (Step {step})")
@@ -790,3 +855,186 @@ def pull_keyframes(frames, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     plt.savefig(os.path.join(output_dir, "keyframes.png"), dpi=300, bbox_inches='tight')
     plt.close(fig)
+
+from matplotlib import animation
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+
+def animate_individual_cytokines(
+    cytokine_frames,
+    output_dir,
+    interval=200,
+    use_log_scale=True
+):
+    """
+    Generate one GIF per cytokine.
+
+    Parameters
+    ----------
+    cytokine_frames : list
+        Output from capture_cytokine_fields()
+        Format:
+        [
+            (step0, {'IFNg': array, ...}),
+            (step1, {'IFNg': array, ...}),
+            ...
+        ]
+
+    output_dir : str
+        Directory for GIFs
+
+    interval : int
+        ms between frames
+
+    use_log_scale : bool
+        Use LogNorm scaling
+    """
+
+    output_dir = os.path.join(output_dir, "cytokine_gifs")
+    os.makedirs(output_dir, exist_ok=True)
+
+    signals = [
+        ('Arg1', 'Arginase-1'),
+        ('CCL2', 'CCL2 (MCP-1)'),
+        ('IFNg', 'IFN-γ'),
+        ('IL2', 'IL-2'),
+        ('IL10', 'IL-10'),
+        ('IL12', 'IL-12'),
+        ('NO', 'Nitric Oxide'),
+        ('TGFb', 'TGF-β'),
+        ('VEGFA', 'VEGF-A')
+    ]
+
+    # ------------------------------------
+    # Compute global limits
+    # ------------------------------------
+
+    global_max = {}
+    global_min = {}
+
+    for signal_name, _ in signals:
+
+        values = []
+
+        for _, frame_data in cytokine_frames:
+            arr = frame_data[signal_name]
+
+            positive_vals = arr[arr > 0]
+
+            if positive_vals.size:
+                values.extend(positive_vals.flatten())
+
+        if len(values) == 0:
+            global_max[signal_name] = 1
+            global_min[signal_name] = 1e-12
+        else:
+            global_max[signal_name] = max(values)
+            global_min[signal_name] = min(values)
+
+    # ------------------------------------
+    # Create one animation per cytokine
+    # ------------------------------------
+
+    for signal_name, display_name in signals:
+
+        fig, ax = plt.subplots(figsize=(7, 6))
+
+        step0, frame0 = cytokine_frames[0]
+
+        initial_grid = frame0[signal_name]
+
+        if use_log_scale:
+
+            from matplotlib.colors import LogNorm
+
+            norm = LogNorm(
+                vmin=max(global_min[signal_name], 1e-12),
+                vmax=max(global_max[signal_name], 1e-10)
+            )
+
+            im = ax.imshow(
+                initial_grid.T,
+                origin="lower",
+                cmap="viridis",
+                norm=norm
+            )
+
+        else:
+
+            im = ax.imshow(
+                initial_grid.T,
+                origin="lower",
+                cmap="viridis",
+                vmin=0,
+                vmax=global_max[signal_name]
+            )
+
+        cbar = plt.colorbar(im, ax=ax)
+
+        cbar.set_label(
+            "Concentration\n(molecules/grid)"
+        )
+
+        title = ax.set_title(
+            f"{display_name}\nStep {step0}",
+            fontsize=14,
+            fontweight="bold"
+        )
+
+        ax.set_xlabel("X Position")
+        ax.set_ylabel("Y Position")
+
+        stats_text = ax.text(
+            0.02,
+            0.98,
+            "",
+            transform=ax.transAxes,
+            verticalalignment="top",
+            fontsize=9,
+            bbox=dict(
+                boxstyle="round",
+                facecolor="white",
+                alpha=0.8
+            )
+        )
+
+        def update(frame_idx):
+
+            step, frame_data = cytokine_frames[frame_idx]
+
+            grid = frame_data[signal_name]
+
+            im.set_data(grid.T)
+
+            title.set_text(
+                f"{display_name}\nStep {step}"
+            )
+
+            stats_text.set_text(
+                f"Max: {np.max(grid):.2e}\n"
+                f"Mean: {np.mean(grid):.2e}"
+            )
+
+            return [im, stats_text]
+
+        anim = animation.FuncAnimation(
+            fig,
+            update,
+            frames=len(cytokine_frames),
+            interval=interval,
+            blit=False
+        )
+
+        out_file = os.path.join(
+            output_dir,
+            f"{signal_name}_dynamics.gif"
+        )
+
+        anim.save(
+            out_file,
+            writer="pillow",
+            fps=max(1, 1000 // interval)
+        )
+
+        plt.close(fig)
