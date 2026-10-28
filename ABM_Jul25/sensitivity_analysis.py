@@ -41,77 +41,116 @@ import shutil
 
 import ABM_Jul25.params as P
 
-# PARAM_SPECS: (param_name, pct_range, lower_clip, upper_clip, is_integer)
+# PARAM_SPECS: 
 #   - param_name  : must exactly match an attribute in params.py
+#   - range_type  : sampling method
+#                       - "cenetered" value * (1 -/+ pct_range)
+#                       - "explicit" [low_value, high_value] sampling range
+#                       - "shifted" shift_center * (1 -/+ pct_range) where shift_center = shift_amount + value
 #   - pct_range   : bounds are set to value * (1 -/+ pct_range)
 #   - lower_clip / upper_clip : hard biological limits (None = no clip);
 #                   used for probabilities/fractions that must stay in [0, 1]
 #   - is_integer  : round sampled values to the nearest int before use
 #                   (division counts, Hill neighborhood counts, etc.)
-#
+# centered:     (param_name, "centered", pct_range, lo_clip, hi_clip, is_int)
+# shifted:      (param_name, "shifted", shift_center, pct_range, lo_clip, hi_clip, is_int)
+# explicit:     (param_name, "explicit", low_value, high_value, lo_clip, hi_clip, is_int)
+
 # NOTE: diffusion coefficients, decay rates, molecular weights, and mass-based
 # release rates are excluded — those are fixed by biophysics/literature, not
 # fitted behavioral parameters.
 
 PARAM_SPECS = [
+
     # --- Cancer cell kinetics ---
-    ('CancerCell_stemGrowthRate',      0.5,  0.0,  None, False),
-    ('CancerCell_asymDivProb',         0.15, 0.7,  1.0,  False),
-    ('CancerCell_progGrowthRate',      0.5,  0.0,  None, False),
-    ('CancerCell_progDivMax',          0.5,  2,    15,   True),
-    ('CancerCell_senescentDeathRate',  0.5,  0.0,  None, False),
-    ('CancerCell_stemMoveProb',        0.3,  0.0,  1.0,  False),
+    ('CancerCell_stemGrowthRate',      'centered', 0.5,  0.0,  None, False),
+    ('CancerCell_asymDivProb',         'centered', 0.15, 0.7,  1.0,  False),
+    ('CancerCell_progGrowthRate',      'centered', 0.5,  0.0,  None, False),
+    ('CancerCell_progDivMax',          'centered', 0.5,  2,    15,   True),
+    ('CancerCell_senescentDeathRate',  'centered', 0.5,  0.0,  None, False),
+    ('CancerCell_stemMoveProb',        'centered', 0.3,  0.0,  1.0,  False),
 
     # --- CD8 T cell kinetics ---
-    ('cd8_commitment_delay',           0.5,  0.0,  None, False),
-    ('TCD8_prolif_IL2th',              0.5,  0.0,  None, False),
-    ('TCD8_div_Interval',              0.5,  0.0,  None, False),
-    ('TCD8_div_limit_effector',        0.5,  2,    20,   True),
-    ('TCD8_div_limit_memory',          0.5,  1,    10,   True),
-    ('k_TCR_activation',               0.5,  0.0,  None, False),
-    ('k_cytokine_CD8',                 0.5,  0.0,  None, False),
-    ('k_hill_MDSC_TCD8',               0.5,  1,    6,    True),
+    ('cd8_commitment_delay',           'centered', 0.5,  0.0,  None, False),
+
+    # current = 0.05, explore around 0.20
+    ('p_memory_diff',                  'shifted',  0.20, 0.5,  0.0,  1.0, False),
+
+    ('TCD8_prolif_IL2th',              'centered', 0.5,  0.0,  None, False),
+    ('TCD8_div_Interval',              'centered', 0.5,  0.0,  None, False),
+    ('TCD8_div_limit_effector',        'centered', 0.5,  2,    20,   True),
+    ('TCD8_div_limit_memory',          'centered', 0.5,  1,    10,   True),
+
+    # current = 1e-4, explore one log fold up
+    ('k_TCR_activation',               'shifted',  1e-3, 1.0,  0.0,  None, False),
+
+    # current = 1e-5, explore one log fold up
+    ('k_cytokine_CD8',                 'shifted',  1e-4, 1.0,  0.0,  None, False),
+
+    ('k_hill_MDSC_TCD8',               'centered', 0.5,  1,    6,    True),
+
+    ('TCD8_kill_cooldown',             'centered', 0.5,  0.0,  None, False),
 
     # --- CD4 T cell kinetics ---
-    ('cd4_commitment_delay',           0.5,  0.0,  None, False),  
-    ('TCD4_Treg_frac',                 0.5,  0.0,  1.0,  False),
-    ('k_TCD4_div',                     0.5,  0.0,  None, False),
-    ('TCD4_k_Th_diff_Treg',            0.5,  0.0,  None, False),
-    ('EC50_Arg1_Treg',                 0.5,  0.0,  None, False),
-    ('TCD4_div_Interval',              0.5,  0.0,  None, False),
-    ('k_Arg1_Treg_div',                0.5,  0.0,  None, False),
+    ('cd4_commitment_delay',           'centered', 0.5,  0.0,  None, False),
+    ('TCD4_Treg_frac',                 'centered', 0.5,  0.0,  1.0,  False),
+    ('k_TCD4_div',                     'centered', 0.5,  0.0,  None, False),
+
+    # current = 2.55e-7, explore one log fold up
+    ('TCD4_k_Th_diff_Treg',            'shifted',  2.5e-6, 1.0, 0.0, None, False),
+
+    # current = 1.9e11, explore one log fold up
+    ('EC50_Arg1_Treg',                 'shifted',  2e12, 1.0, 0.0, None, False),
+
+    ('TCD4_div_Interval',              'centered', 0.5,  0.0,  None, False),
+    ('k_Arg1_Treg_div',                'centered', 0.5,  0.0,  None, False),
 
     # --- Macrophage polarization / phagocytosis ---
-    ('Mac_moveProb',                   0.5,  0.0,  1.0,  False),      
-    ('k_Mac_M1_pol',                   0.5,  0.0,  None, False),
-    ('k_Mac_M2_pol',                   0.5,  0.0,  None, False),
-    ('EC50_TGFb_M2',                   0.5,  0.0,  None, False),
-    ('EC50_IL10_M2',                   0.5,  0.0,  None, False),
-    ('EC50_IFNg_M1',                   0.5,  0.0,  None, False),
-    ('EC50_IL12_M1',                   0.5,  0.0,  None, False),
-    ('k_M1_phago',                     0.5,  0.0,  None, False),
-    ('IC50_IL10_phago',                0.5,  0.0,  None, False),
+    ('Mac_moveProb',                   'centered', 0.5,  0.0,  1.0,  False),
+
+    # current = 3.215e-7, explore one log fold up
+    ('k_Mac_M1_pol',                   'shifted',  3e-6, 1.0, 0.0, None, False),
+
+    # current = 2.894e-6, explore one log fold up
+    ('k_Mac_M2_pol',                   'shifted',  3e-5, 1.0, 0.0, None, False),
+
+    ('EC50_TGFb_M2',                   'shifted',  10 * P.EC50_TGFb_M2, 1.0, 0.0, None, False),
+    ('EC50_IL10_M2',                   'shifted',  10 * P.EC50_IL10_M2, 1.0, 0.0, None, False),
+    ('EC50_IFNg_M1',                   'shifted',  10 * P.EC50_IFNg_M1, 1.0, 0.0, None, False),
+    ('EC50_IL12_M1',                   'shifted',  10 * P.EC50_IL12_M1, 1.0, 0.0, None, False),
+
+    ('k_M1_phago',                     'centered', 0.5,  0.0,  None, False),
+
+    ('IC50_IL10_phago',                'shifted',  10 * P.IC50_IL10_phago, 1.0, 0.0, None, False),
 
     # --- Recruitment rates ---
-    ('k_TCD8_rec',                     0.5,  0.0,  None, False),
-    ('k_TCD4_rec',                     0.5,  0.0,  None, False),
-    ('k_MDSC_rec_base',                0.5,  0.0,  None, False),
-    ('k_MDSC_rec_max',                 0.5,  0.0,  None, False),
-    ('k_Mac_rec',                      0.5,  0.0,  None, False),
-    ('M1_M2_rec_ratio',                0.3,  0.0,  1.0,  False),
+    ('k_TCD8_rec',                     'shifted',  2.5e-6, 1.0, 0.0, None, False),
+    ('k_TCD4_rec',                     'shifted',  1.25e-6, 1.0, 0.0, None, False),
+    ('k_MDSC_rec_base',                'shifted',  2.4e-7, 1.0, 0.0, None, False),
+    ('k_MDSC_rec_max',                 'shifted',  1.4e-6, 1.0, 0.0, None, False),
+    ('k_Mac_rec',                      'shifted',  2.5e-6, 1.0, 0.0, None, False),
+
+    ('M1_M2_rec_ratio',                'centered', 0.3,  0.0,  1.0,  False),
 
     # --- PD-1 / PD-L1 axis ---
-    ('PDL1_baseline_mean',             0.5,  0.0,  1.0,  False),
-    ('PDL1_IFNg_max',                  0.3,  0.0,  1.0,  False),
-    ('k_PDL1_upregulation',            0.5,  0.0,  None, False),
-    ('k_PD1_upregulation',             0.5,  0.0,  None, False),
-    ('k_PD1_signaling',                0.5,  0.0,  None, False),
-    ('k_exhaustion_rate',              0.5,  0.0,  None, False),
-    ('k_exhaustion_recovery',          0.5,  0.0,  None, False),
-    ('exhaustion_threshold_eff',       0.3,  0.05, 0.95, False),
-    ('exhaustion_threshold_term',      0.3,  0.05, 0.95, False),
-]
+    ('PDL1_baseline_mean',             'centered', 0.5,  0.0,  1.0,  False),
+    ('PDL1_IFNg_max',                  'centered', 0.3,  0.0,  1.0,  False),
+    ('k_PDL1_upregulation',            'centered', 0.5,  0.0,  None, False),
+    ('k_PD1_upregulation',             'centered', 0.5,  0.0,  None, False),
 
+    # current = 2e-5
+    ('k_PD1_signaling',                'shifted',  2e-4, 1.0, 0.0, None, False),
+
+    # current = 1e-5
+    ('k_exhaustion_rate',              'shifted',  1e-4, 1.0, 0.0, None, False),
+
+    # current = 5e-7
+    ('k_exhaustion_recovery',          'shifted',  5e-6, 1.0, 0.0, None, False),
+
+    ('exhaustion_threshold_eff',       'centered', 0.3,  0.05, 0.95, False),
+    ('exhaustion_threshold_term',      'centered', 0.3,  0.05, 0.95, False),
+    ('how_exhausted',                  'centered', 1.0,  0.0,  1.0,  False),
+]
 
 def build_problem(param_specs=PARAM_SPECS):
     """
@@ -121,36 +160,98 @@ def build_problem(param_specs=PARAM_SPECS):
     """
     names, bounds, integer_flags = [], [], {}
 
-    for name, pct, lo_clip, hi_clip, is_int in param_specs:
+    for spec in param_specs:
+
+        name = spec[0]
+        range_type = spec[1]
+
         if not hasattr(P, name):
             warnings.warn(
-                f"params.py has no attribute '{name}' — skipping this "
-                f"parameter in the sensitivity sweep. Check for a rename/typo."
+                f"params.py has no attribute '{name}' "
+                f"— skipping parameter."
             )
             continue
 
         val = float(getattr(P, name))
-        lo, hi = val * (1 - pct), val * (1 + pct)
-        if val < 0:  # guard in case pct pushes sign flip on a negative-valued param
-            lo, hi = hi, lo
+
+        # --------------------------------------------------
+        # Relative to current params.py value
+        # --------------------------------------------------
+        if range_type == "centered":
+
+            pct_range, lo_clip, hi_clip, is_int = spec[2:]
+
+            lo = val * (1 - pct_range)
+            hi = val * (1 + pct_range)
+
+            if val < 0:
+                lo, hi = hi, lo
+
+        # --------------------------------------------------
+        # Relative to user-specified center
+        # --------------------------------------------------
+        elif range_type == "shifted":
+
+            shift_center, pct_range, lo_clip, hi_clip, is_int = spec[2:]
+
+            lo = shift_center * (1 - pct_range)
+            hi = shift_center * (1 + pct_range)
+
+            if shift_center < 0:
+                lo, hi = hi, lo
+
+        # --------------------------------------------------
+        # User-specified bounds
+        # --------------------------------------------------
+        elif range_type == "explicit":
+
+            lo, hi, lo_clip, hi_clip, is_int = spec[2:]
+
+        else:
+            raise ValueError(
+                f"Unknown range_type '{range_type}' "
+                f"for parameter '{name}'."
+            )
+
+        # --------------------------------------------------
+        # Apply hard clips
+        # --------------------------------------------------
         if lo_clip is not None:
-            lo = max(lo, lo_clip)
+            if (lo_clip == 0) and (lo < 0.1):
+                lo = lo_clip # If the low value is close to low clip (0) snap to 0
+            else:
+                lo = max(lo, lo_clip) # Take the greater of the two values for lower bound
         if hi_clip is not None:
-            hi = min(hi, hi_clip)
+            if hi > hi_clip * 0.9:
+                hi = hi_clip # If the value is close to high clip, snap to that value
+            else:
+                hi = min(hi, hi_clip) # Take the smaller of the two values for higher bound
+
+        # --------------------------------------------------
+        # Prevent degenerate ranges
+        # --------------------------------------------------
         if lo >= hi:
-            # Degenerate range (e.g. value already at a clip boundary) —
-            # fall back to a tight +/-10% window so SALib doesn't choke.
-            lo, hi = val * 0.9, val * 1.1
+
+            if val == 0:
+                lo, hi = -1e-6, 1e-6
+
+            else:
+                lo, hi = sorted([
+                    val * 0.9,
+                    val * 1.1
+                ])
 
         names.append(name)
         bounds.append([lo, hi])
         integer_flags[name] = is_int
 
-    problem = {'num_vars': len(names), 'names': names, 'bounds': bounds}
+    problem = {
+        "num_vars": len(names),
+        "names": names,
+        "bounds": bounds,
+    }
+
     return problem, integer_flags
-
-
-problem, INTEGER_PARAMS = build_problem()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. SUMMARY STATISTICS
@@ -167,15 +268,51 @@ problem, INTEGER_PARAMS = build_problem()
 #    Add or remove based on what your data can actually measure.
 # ─────────────────────────────────────────────────────────────────────────────
 
+RAW_STAT_NAMES = [
+    'tumor_cell_count',
+    'cd8_exhausted_fraction',
+    'cd8_active_fraction',
+    'treg_fraction',
+    'm1_m2_ratio',
+    'mdsc_count',
+    'tumor_immune_ratio',
+    'pdl1_expression',
+    'tumor_elimination_step',
+    'tumor_extinct'
+]
+
 SUMMARY_STAT_NAMES = [
-    'tumor_cell_count',         # total tumor cells at T2
-    'cd8_exhausted_fraction',   # fraction of CD8s that are terminally exhausted
-    'cd8_active_fraction',      # fraction of CD8s that are active/non-exhausted
-    'treg_fraction',            # Tregs as fraction of total CD4
-    'm1_m2_ratio',              # M1 / (M1 + M2) macrophage ratio
-    'mdsc_count',               # total MDSC count
-    'tumor_immune_ratio',       # tumor cells / total immune cells (tumor burden proxy)
-    'pdl1_mean_expression',     # mean PD-L1 on tumor cells
+
+    # --- Tumor burden ---
+    'tumor_cell_count_mean',
+    'tumor_cell_count_sd',
+
+    # --- CD8 states ---
+    'cd8_exhausted_fraction_mean',
+    'cd8_exhausted_fraction_sd',
+
+    'cd8_active_fraction_mean',
+    'cd8_active_fraction_sd',
+
+    # --- CD4/Treg ---
+    'treg_fraction_mean',
+    'treg_fraction_sd',
+
+    # --- Macrophages ---
+    'm1_m2_ratio_mean',
+    'm1_m2_ratio_sd',
+
+    # --- MDSCs ---
+    'mdsc_count_mean',
+    'mdsc_count_sd',
+
+    # --- Tumor : immune balance ---
+    'tumor_immune_ratio_mean',
+    'tumor_immune_ratio_sd',
+
+    # --- PD-L1 ---
+    'pdl1_expression_mean',
+    'pdl1_expression_sd',
 ]
 
 
@@ -235,17 +372,24 @@ def run_abm(param_set: dict, n_replicates: int = 3, seed_offset: int = 0) -> dic
                 initial_CD8Tcells=scenario_cfg['initial_CD8Tcells'],
                 initial_CD4Tcells=scenario_cfg['initial_CD4Tcells'],
                 initial_macrophages=scenario_cfg['initial_macrophages'],
-                initial_MDSC=scenario_cfg['initial_MDSC'],
-                pdl1_pd1_axis=True
+                initial_MDSC=scenario_cfg['initial_MDSC']
             )
 
-            for _ in range(scenario_cfg['steps']):
+            tumor_elimination_step = np.nan
+            for step in range(scenario_cfg['steps']):
+
+                model.step()
+
+                if model.count_agents(A.CancerCell) == 0:
+                    tumor_elimination_step = step
+                    break
+
                 if not model.running:
                     break
-                model.step()
 
             # 3) Compute summary stats from model histories + live agent counts
             stats = _compute_summary_stats(model)
+            stats['tumor_elimination_step'] = tumor_elimination_step
             results_across_reps.append(stats)
 
     finally:
@@ -254,74 +398,122 @@ def run_abm(param_set: dict, n_replicates: int = 3, seed_offset: int = 0) -> dic
             setattr(P, key, val)
 
     # 5) Average across replicates
-    summary = {
-        k: np.mean([r[k] for r in results_across_reps])
-        for k in SUMMARY_STAT_NAMES
-    }
+    summary = {}
+
+    for k in RAW_STAT_NAMES:
+
+        vals = [r[k] for r in results_across_reps]
+
+        summary[f"{k}_mean"] = np.nanmean(vals)
+        summary[f"{k}_sd"] = np.nanstd(vals, ddof=1) # sample standard deviation
+
     return summary
 
 
 def _compute_summary_stats(model) -> dict:
-    """
-    Extract summary statistics from a completed ABM_Model instance, using
-    only live-agent introspection (model.count_agents / count_cell_type)
-    since the model does not keep time-series histories of exhaustion state
-    or PD-L1 — those attributes live on individual CancerCell/CD8TCell
-    agents, not on the model itself.
-    """
-    # --- Tumor cell count (final step) ---
-    tumor_count = model.count_agents(A.CancerCell)
+    # ----------------------------
+    # Cancer cells
+    # ----------------------------
+    n_cancer = model.count_agents(A.CancerCell)
 
-    # --- CD8 exhaustion state breakdown (live agents) ---
-    n_pd1neg   = model.count_cell_type(A.CD8TCell, exhaustion_state=A.CD8ExhaustionState.CD8TPD1NEG)
-    n_effector = model.count_cell_type(A.CD8TCell, exhaustion_state=A.CD8ExhaustionState.CD8TEFFECTOR)
-    n_terminal = model.count_cell_type(A.CD8TCell, exhaustion_state=A.CD8ExhaustionState.CD8TTERMINAL)
-    n_cd8_total = n_pd1neg + n_effector + n_terminal
-    cd8_exhausted_frac = n_terminal / n_cd8_total if n_cd8_total > 0 else 0.0
-    cd8_active_frac    = n_effector / n_cd8_total if n_cd8_total > 0 else 0.0
+    # ----------------------------
+    # Macrophages
+    # ----------------------------
+    n_m1 = model.count_cell_type(
+        A.Macrophage,
+        subtype=A.MacSubtype.M1
+    )
 
-    # --- Treg fraction among CD4 (live agents; diff_state, not subtype) ---
-    n_treg    = model.count_cell_type(A.CD4TCell, diff_state=A.CD4DiffState.CD4TREG)
-    n_thelper = model.count_cell_type(A.CD4TCell, diff_state=A.CD4DiffState.CD4THELPER)
-    n_cd4_total = n_treg + n_thelper
-    treg_frac = n_treg / n_cd4_total if n_cd4_total > 0 else 0.0
+    n_m2 = model.count_cell_type(
+        A.Macrophage,
+        subtype=A.MacSubtype.M2
+    )
 
-    # --- M1/M2 ratio ---
-    n_m1 = model.count_cell_type(A.Macrophage, subtype=A.MacSubtype.M1)
-    n_m2 = model.count_cell_type(A.Macrophage, subtype=A.MacSubtype.M2)
-    m1_m2_ratio = n_m1 / (n_m1 + n_m2) if (n_m1 + n_m2) > 0 else 0.0
+    # ----------------------------
+    # CD8 states
+    # ----------------------------
+    n_cd8_naive = model.count_cell_type(
+        A.CD8TCell,
+        exhaustion_state=A.CD8ExhaustionState.CD8TPD1NEG
+    )
 
-    # --- MDSC count ---
-    mdsc_count = model.count_agents(A.MDSC)
+    n_cd8_effector = model.count_cell_type(
+        A.CD8TCell,
+        exhaustion_state=A.CD8ExhaustionState.CD8TEFFECTOR
+    )
 
-    # --- Tumor/immune ratio (all CD8 diff states + all CD4 diff states) ---
-    n_cd8_all = model.count_agents(A.CD8TCell)
-    n_cd4_all = model.count_agents(A.CD4TCell)
-    n_immune_total = n_cd8_all + n_cd4_all + n_m1 + n_m2 + mdsc_count
-    tumor_immune_ratio = tumor_count / n_immune_total if n_immune_total > 0 else np.nan
+    n_cd8_exhausted = model.count_cell_type(
+        A.CD8TCell,
+        exhaustion_state=A.CD8ExhaustionState.CD8TTERMINAL
+    )
 
-    # --- Mean PD-L1 on live tumor cells ---
-    pdl1_vals = [
-        agent.pdl1 for agent in model.schedule.agents
-        if isinstance(agent, A.CancerCell) and getattr(agent, "alive", True)
-    ]
-    pdl1_mean = float(np.mean(pdl1_vals)) if pdl1_vals else 0.0
+    # ----------------------------
+    # CD4 states
+    # ----------------------------
+    n_cd4_helper = model.count_cell_type(
+        A.CD4TCell,
+        diff_state=A.CD4DiffState.CD4THELPER
+    )
+
+    n_cd4_treg = model.count_cell_type(
+        A.CD4TCell,
+        diff_state=A.CD4DiffState.CD4TREG
+    )
+
+    # Remaining CD4s assumed naïve/uncommitted
+    n_cd4_total = model.count_agents(A.CD4TCell)
+    n_cd4_naive = max(
+        0,
+        n_cd4_total - n_cd4_helper - n_cd4_treg
+    )
+
+    # ----------------------------
+    # Total population
+    # ----------------------------
+    total_population = (
+        n_cancer +
+        n_m1 +
+        n_m2 +
+        n_cd8_naive +
+        n_cd8_effector +
+        n_cd8_exhausted +
+        n_cd4_helper +
+        n_cd4_treg +
+        n_cd4_naive
+    )
+
+    if total_population == 0:
+        return {
+            'Cancer_cells':   0.0,
+            'M1_like':        0.0,
+            'M2_like':        0.0,
+            'CD8_Effector':   0.0,
+            'CD8_Exhausted':  0.0,
+            'CD8_Naive':      0.0,
+            'CD4_Helper':     0.0,
+            'CD4_Treg':       0.0,
+            'CD4_Naive':      0.0,
+        }
 
     return {
-        'tumor_cell_count':       float(tumor_count),
-        'cd8_exhausted_fraction': cd8_exhausted_frac,
-        'cd8_active_fraction':    cd8_active_frac,
-        'treg_fraction':          treg_frac,
-        'm1_m2_ratio':            m1_m2_ratio,
-        'mdsc_count':             float(mdsc_count),
-        'tumor_immune_ratio':     tumor_immune_ratio,
-        'pdl1_mean_expression':   pdl1_mean,
+        'Cancer_cells':  n_cancer / total_population,
+        'M1_like':       n_m1 / total_population,
+        'M2_like':       n_m2 / total_population,
+        'CD8_Effector':  n_cd8_effector / total_population,
+        'CD8_Exhausted': n_cd8_exhausted / total_population,
+        'CD8_Naive':     n_cd8_naive / total_population,
+        'CD4_Helper':    n_cd4_helper / total_population,
+        'CD4_Treg':      n_cd4_treg / total_population,
+        'CD4_Naive':     n_cd4_naive / total_population,
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. SAMPLING AND EVALUATION
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+problem, INTEGER_PARAMS = build_problem(param_specs=PARAM_SPECS)
 
 def generate_samples(N: int = 64, seed: int = 42) -> np.ndarray:
     """
@@ -338,7 +530,7 @@ def generate_samples(N: int = 64, seed: int = 42) -> np.ndarray:
         1-5 min/run:  N=64, use surrogate/emulator afterward
         > 5 min/run:  N=32, strongly consider surrogate model
     """
-    param_values = sobol_sample.sample(problem, N, calc_second_order=False, seed=seed)
+    param_values = sobol_sample.sample(problem, N, calc_second_order=second_order_toggle, seed=seed)
     print(f"Generated {len(param_values)} parameter sets "
           f"(N={N}, {problem['num_vars']} parameters)")
     return param_values
@@ -588,7 +780,7 @@ def run_sobol_analysis(param_values: np.ndarray,
             Si = sobol_analyze.analyze(
                 problem,
                 y_col,
-                calc_second_order=False,
+                calc_second_order=second_order_toggle,
                 print_to_console=False
             )
         except Exception as e:
@@ -606,7 +798,11 @@ def run_sobol_analysis(param_values: np.ndarray,
             'ST':  Si['ST'],
             'ST_conf': Si['ST_conf'],
         })
-        df['identifiable'] = (df['S1'] > 0.05) & (df['ST'] > 0.05)
+        df["relative_ST_conf"] = (
+                df["ST_conf"] /
+                np.maximum(df["ST"], 1e-12)
+            )
+        df["top_parameter"] = ((df["relative_ST_conf"] < 0.25) & (df["ST"] > 0.05))
         df.to_csv(f"{output_dir}/{stat_name}_sobol.csv", index=False)
         print(f"\n{stat_name} — top 5 parameters by total-order index:")
         print(df.nlargest(5, 'ST')[['parameter', 'S1', 'ST']].to_string(index=False))
@@ -748,6 +944,23 @@ def summarize_identifiability(all_indices: dict,
 
     return df
 
+def save_run_database(param_values, Y,
+                      output_dir='sensitivity_results'):
+
+    df = pd.DataFrame(
+        param_values,
+        columns=problem['names']
+    )
+
+    for i, stat in enumerate(SUMMARY_STAT_NAMES):
+        df[stat] = Y[:, i]
+
+    df.to_csv(
+        f"{output_dir}/all_runs.csv",
+        index=False
+    )
+
+    return df
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. MAIN
@@ -797,10 +1010,15 @@ if __name__ == '__main__':
                              "in --output-dir instead of wiping it and starting over.")
     args = parser.parse_args()
 
+    second_order_toggle = False
+
     print(f"\nTumor ABM Sensitivity Analysis  [mode={args.mode}]")
     print(f"  Parameters: {problem['num_vars']}")
     print(f"  Summary statistics: {len(SUMMARY_STAT_NAMES)}")
-    n_total_samples_formula = args.N * (2 * problem['num_vars'] + 2)
+    if second_order_toggle is False:
+        n_total_samples_formula = args.N * (problem['num_vars'] + 2)
+    else:
+        n_total_samples_formula = args.N * (2 * problem['num_vars'] + 2)
     print(f"  N = {args.N}  →  {n_total_samples_formula} parameter sets "
           f"× {args.n_replicates} replicates = "
           f"{n_total_samples_formula * args.n_replicates} total ABM runs\n")
@@ -870,6 +1088,7 @@ if __name__ == '__main__':
         plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='S1')
         plot_ranking_per_stat(all_indices, output_dir=args.output_dir, top_n=10)
         summarize_identifiability(all_indices, output_dir=args.output_dir)
+        save_run_database(param_values, Y, output_dir=args.output_dir)
         print(f"\nAll outputs written to: {args.output_dir}/")
 
     # ---- Phase: full ----
@@ -901,4 +1120,5 @@ if __name__ == '__main__':
         plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='S1')
         plot_ranking_per_stat(all_indices, output_dir=args.output_dir, top_n=10)
         summarize_identifiability(all_indices, output_dir=args.output_dir)
+        save_run_database(param_values, Y, output_dir=args.output_dir)
         print(f"\nAll outputs written to: {args.output_dir}/")
