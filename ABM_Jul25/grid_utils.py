@@ -107,15 +107,9 @@ def update_diffusion(
     
     # 1) Compute Laplacian (∇2C)
     lap = laplacian(field)
-    
-    # Scale secretions over dT
-    n_steps = int(P.timestep / P.delta_t)
-
-    scaled_secretion = secretion_map / n_steps
-    scaled_consumption = consumption_map / n_steps
 
     # Apply diffusion + source first, scaled
-    field = field + dt * (D * lap + scaled_secretion - scaled_consumption)
+    field = field + dt * (D * lap + secretion_map - consumption_map)
 
     # Then apply decay exactly (not linearized)
     field *= np.exp(-decay * dt)
@@ -138,10 +132,22 @@ def update_diffusion_over_timestep(
     Advance `field` forward by macro-time-step `dT` seconds, using repeated calls
     to update_diffusion(...) with a micro‐time‐step of `dt`.
     """
-    
-    n_steps = int(dT / dt)
+
+    dt = min(dt, 0.2 / D) # calculates a smaller time step if the diffusion is too fast for the default dt = 1
+    n_steps = int(np.ceil(dT / dt))
+    dt = dT / n_steps
+
+    scaled_secretion = secretion_map / n_steps
+    scaled_consumption = consumption_map / n_steps
     
     # Perform that many Euler‐march diffusion updates
     for _ in range(n_steps):
-        field = update_diffusion(field, secretion_map, consumption_map, D, decay, dt)
+        field = update_diffusion(
+            field,
+            secretion_map=scaled_secretion,
+            consumption_map=scaled_consumption,
+            D=D,
+            decay=decay,
+            dt=dt,
+        )
     return field
