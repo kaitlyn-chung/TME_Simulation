@@ -17,11 +17,10 @@
 # Usage:  ./submit_all.sh
 # =============================================================================
 set -euo pipefail
-mkdir -p logs
 
 cd /athena/cayuga_0014/scratch/kch4018/abm-files/TME_Simulation/ABM_Jul25
 
-start_time=$(date +%Y-%m-%d %T)
+start_time=$(date "+%Y-%m-%d %H:%M:%S")
 echo "Start time: $start_time"
 
 echo "Submitting phase 1: generate samples..."

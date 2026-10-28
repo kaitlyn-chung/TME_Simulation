@@ -43,7 +43,8 @@ python -u -m ABM_Jul25.sensitivity_analysis \
     --N "${N}" \
     --output-dir "${OUTPUT_DIR}"
 
-end_time=$(date +%Y-%m-%d %T)
+end_time=$(date "+%Y-%m-%d %H:%M:%S")
+
 echo "End time: $end_time"
 
 echo "All done. See ${OUTPUT_DIR}/ for:"
