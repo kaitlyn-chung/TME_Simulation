@@ -28,9 +28,10 @@ D_IL12 = 0.026    # = 65 μm²/sec, estimation based on IL-2
 
 # Decay rates (unit: 1/sec)
 lambda_Arg1 = math.log(2)/(30*60)  # = 30 min half life, 1/sec
-lambda_CCL2 = 1.67e-5  # 1/sec
-lambda_IFNg = 6.5e-5  # 1/sec
-lambda_IL2 = 2.78e-5  # 1/sec
+lambda_CCL2 = 0.838/3600  # = 0.838 k degradation rate, 1/sec
+lambda_IFNg = math.log(2)/(1.1*60)  # = 1.1 min half life, 1/sec
+# lambda_IL2 = 2.78e-5  # 1/sec
+lambda_IL2 = math.log(2)/(6*60)  # = 6 min half life, 1/sec
 lambda_IL10 = 4.6e-5  # 1/sec
 lambda_NO = 1e-2 # 1/sec
 lambda_O2 = 1e-5  # 1/sec
@@ -39,7 +40,7 @@ lambda_VEGFA = 1.65e-4  # 1/sec
 lambda_IL12 = 3e-5  # 1/sec, estimation
 
 # Molecular weights (unit: g/mol)
-MW_Arg1 = 4.1e+4 # g/mol = Da
+MW_Arg1 = 4.1e+4 * 3 # g/mol = Da, homotrimer
 MW_CCL2 = 1.4e+4 # g/mol = Da
 MW_IFNg = 3.49e+4 # g/mol = Da, homodimer
 MW_IL2 = 1.5e+4 # g/mol = Da
@@ -51,7 +52,7 @@ MW_VEGFA = 4.4e+4 # g/mol = Da
 MW_IL12 = 7e+4 # g/mol = Da, heterodimer
 
 # Release rates by mass (unit: g/sec)
-Arg1_release_mass = 6.64e-9 # g/sec, by MDSC
+Arg1_release_mass = 6.64e-9 * 1e-2 # g/sec, by MDSC
 CCL2_release_mass = 2.86e-20 # by cancer cells
 IFNg_release_mass = 7.64e-19 # by cancer, M1, CD4T, CD8T
 IL2_release_mass = 1.43e-19 # by CD8T
@@ -87,6 +88,10 @@ IL12_release = IL12_release_mass * Avogadro_No / MW_IL12
 O2_uptake = 1e-5 # oxygen consumption by cells
 VEGFA_uptake = 5e-5 # VEGFA uptake by endothelial cells
 IFNg_uptake_cancer = 0.001 # IFNg consumption by cancer cells
+k_IL2_uptake = 1e-3 # IL2 consumption by T cells, 1/sec
+k_IL12_uptake = 1e-3 # IL12 consumption
+k_CCL2_uptake = 1e-5 # CCL2 consumption
+k_Arg1_uptake = 1e-3 # Arg1 consumption by T cells
 
 # Cancer Cell parameters
 CancerCell_stemGrowthRate = (69/365)/(24*3600) # = 0.18/day: originally 2.9e-6 /sec = 0.25/day, stem cell growth rate
@@ -98,8 +103,9 @@ CancerCell_stemMoveProb = 0.8 # probability of stem migration per timestep
 CancerCell_MoveProb = 1 # probability of non-stem migration per timestep
 
 # CD8T Cell parameters
-cd8_commitment_delay = 8*24*3600 # sec = 8 days delay from activation to memory commitment, clonal expansion
+cd8_commitment_delay = 5*24*3600 # sec = 5 days delay from activation to memory commitment, clonal expansion
 p_memory_diff = 0.05 # probability of differentiating into memory T cell after commitment delay
+p_death_diff = 0.5 # probability of dying after commitment delay (either dying, memory_diff, or remaining activated are the options here)
 TCD8_lifespanMean = 80*24*3600 # sec = 1.29 days
 TCD8_lifespanSD = 32.397*24*3600 # sec = 0.15 days
 TCD8_moveProb = 1 # migration probability at each timestep
@@ -108,8 +114,6 @@ TCD8_prolif_IL2th = TCD8_prolif_IL2th_mass * 1.25e-10 * Avogadro_No / MW_IL2 # s
 TCD8_div_Interval = 43200 # sec = 12h
 TCD8_div_limit_effector = 8 # higher division limit for clonal expansion
 TCD8_div_limit_memory = 4
-# k_TCD8_killing = 1.16e-5 # cell/sec = 1 cell/day
-k_TCR_activation = 1e-4 # 1/(molecules/grid * sec), used for both CD8 and CD4, activation within a few hours
 k_cytokine_CD8 = 1e-5 # 1/sec, rate of becoming fully active once TCR signal is above threshold
 TCD8_kill_cooldown = 2*3600 # sec, two hours to cooldown
 
@@ -122,6 +126,10 @@ n_hill_MDSC_TCD8 = 1 # no cooperative inhibition
 # CD4T Cell parameters
 # init_naive_frac = 0.05 # check this value
 cd4_commitment_delay = 3*24*3600 # sec = 3 days
+EC50_TGFb_Treg = 5-12 * 1.25e-10 * Avogadro_No # molecules = 5pM appoximation
+EC50_IL2_Treg = 4e-12 * 1.25e-10 * Avogadro_No  # molecules = 4pM
+EC50_IL2_Helper = 50e-12 * 1.25e-10 * Avogadro_No # molecules = 50pM approximation based on memory CD4 EC50
+k_TCR_activation = 1e-4 # 1/(molecules/grid * sec) activation within a few hours
 k_cytokine_CD4 = 1e-5 # 1/sec, rate of becoming fully active once TCR signal is above threshold
 TCD4_lifespanMean = 47*24*3600 # sec = 1.29 days
 TCD4_lifespanSD = 24.29*24*3600 # sec = 0.15 days
@@ -131,6 +139,8 @@ TCD4_k_Th_diff_Treg = 2.55e-7 # /sec = 0.022 /day Th -> Treg differentiation rat
 k_TCD4_div = 1.16e-5 # /sec = 1/day
 TCD4_div_Interval = 43200 # sec = 12h
 CD4_DIVISION_LIMIT = 4 # Add missing parameter
+p_contraction = 0.2
+TCD4_death_rate = 1/(10*24*3600) # Mean survival post-contraction of 10 days
 EC50_Arg1_Treg = 1.9e+11 # molecules = 22.1 mU Arg1
 k_Arg1_Treg_div = 2.43e-05 # /sec = 2.1 times /day
 
@@ -181,9 +191,8 @@ k_PD1_decay             = 1e-6        # 1/sec, decay when unstimulated
 k_PD1_signaling         = 2e-5        # 1/sec, exhaustion signal accumulation rate
 k_exhaustion_rate       = 1e-5        # 1/sec, exhaustion_level tracks signal
 k_exhaustion_recovery   = 5e-7        # 1/sec, partial recovery rate
-# PD1_signal_threshold    = 0.05        # signal floor below which recovery activates
 
 exhaustion_threshold_eff = 0.3
 exhaustion_threshold_term = 0.70
 
-how_exhausted = 0.8
+how_exhausted = 0
