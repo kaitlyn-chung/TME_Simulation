@@ -48,15 +48,18 @@ class CancerCell(Agent):
             return
             
         x, y = self.pos
-        # Secrete TGFb, CCL2, IFNg
+        # Secrete TGFb, CCL2
         self.model.TGFb_secretion_map[x, y] += P.TGFb_release_cancer * self.model.timestep
         self.model.CCL2_secretion_map[x, y] += P.CCL2_release * self.model.timestep
-        self.model.IFNg_secretion_map[x, y] += P.IFNg_release * self.model.timestep
+
+        # Uptake CCL2
+        local_CCL2 = self.model.CCL2_field[x, y]
+        self.model.CCL2_consumption_map[x, y] += (P.k_CCL2_uptake * local_CCL2 * self.model.timestep)
         
         # Consume IFNg
-        self.model.IFNg_consumption_map[x, y] += P.IFNg_uptake_cancer * self.model.timestep
+        local_IFNg = self.model.IFNg_field[x, y] # looks at local IFNg signal for upregulation of PDL1 and uptake
+        self.model.IFNg_consumption_map[x, y] += P.IFNg_uptake_cancer * local_IFNg * self.model.timestep
         # Control of IFNg dynamics
-        local_IFNg = self.model.IFNg_field[x, y] # looks at local IFNg signal for upregulation of PDL1
         IFNg_signal = local_IFNg / (local_IFNg + P.EC50_IFNg_PDL1) # MM kinetics
         pdl1_target = P.PDL1_baseline_mean + P.PDL1_IFNg_max * IFNg_signal
 
@@ -109,22 +112,22 @@ class CancerCell(Agent):
             if random.random() < P.CancerCell_asymDivProb:
                 # ASYMMETRIC → produce 1 STEM, 1 PROGENITOR
                 # (We reuse this agent as one daughter and spawn a new agent for the other)
-                # Decide randomly which subtype this agent "stays as"
+                # Decide randomly which subtype this agent "stays as" depending on daughter
                 if random.random() < 0.5:
-                    # Keep this agent as STEM; spawn a PROGENITOR daughter
-                    new_subtype = CancerSubtype.PROGENITOR
-                    self.subtype = CancerSubtype.STEM
+                    daughter_subtype = CancerSubtype.PROGENITOR
+                    parent_subtype = CancerSubtype.STEM
                 else:
-                    # Convert this agent into a PROGENITOR; spawn a STEM daughter
-                    new_subtype = CancerSubtype.STEM
-                    self.subtype = CancerSubtype.PROGENITOR
-                # Create the "other" daughter at a random empty neighbor
-                self._spawn_daughter(new_subtype, x, y)
+                    daughter_subtype = CancerSubtype.STEM
+                    parent_subtype = CancerSubtype.PROGENITOR
+
+                sucessful_division = self._spawn_daughter(daughter_subtype, x, y)
+                if sucessful_division:
+                    self.subtype = parent_subtype
 
             else:
                 # SYMMETRIC STEM → both daughters are STEM
                 # We keep this agent as STEM, and spawn one additional STEM
-                self._spawn_daughter(CancerSubtype.STEM, x, y)
+                sucessful_division = self._spawn_daughter(CancerSubtype.STEM, x, y)
                 # (the existing agent remains STEM)
 
     def _progenitor_behavior(self, x, y):
@@ -142,12 +145,11 @@ class CancerCell(Agent):
 
         # 2) Attempt a division event this tick
         if random.random() < P.CancerCell_progGrowthRate * self.model.timestep:
-            # Divide into two PROGENITOR daughters
-            self.divisions_done += 1
-
             # Keep this agent as a renewed PROGENITOR (with updated count)
             # and spawn one more PROGENITOR
-            self._spawn_daughter(CancerSubtype.PROGENITOR, x, y)
+            successful_division = self._spawn_daughter(CancerSubtype.PROGENITOR, x, y)
+            if successful_division:
+                self.divisions_done += 1
 
             # If this cell has now reached Q total divisions, turn it into SENESCENT
             if self.divisions_done >= P.CancerCell_progDivMax:
@@ -173,7 +175,7 @@ class CancerCell(Agent):
         neighbors = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
         if not empty:
-            return
+            return False
 
         new_pos = random.choice(empty)
         daughter = CancerCell(self.model._next_id(), self.model, subtype=subtype)
@@ -185,6 +187,7 @@ class CancerCell(Agent):
         if self.model.grid.is_cell_empty(new_pos):
             self.model.grid.place_agent(daughter, new_pos)
             self.model.schedule.add(daughter)
+        return True
 
     def _migrate(self):
         """
@@ -268,7 +271,8 @@ class CD8TCell(Agent):
         self.age = 0.0                        # in seconds
         self.IL2_accum = 0.0                  # accumulated IL-2 exposure (molecules·s)
         self.divisions_done = 0               # how many times this cell has divided
-        self.last_div_tick = -9999            # scheduler.time of last division (initialize far in past)
+        self.time_since_last_div = 0.0
+        self.commitment_checked = False
 
         # 3) Track exhaustion
         self.pd1             = P.PD1_baseline   # surface PD-1 level [0–1]
@@ -277,6 +281,9 @@ class CD8TCell(Agent):
 
         # 4) Mark as alive
         self.alive = True
+        self.can_exhaust = False
+        if random.random() < P.how_exhausted:
+            self.can_exhaust = True
 
     def step(self):
         """
@@ -298,6 +305,9 @@ class CD8TCell(Agent):
         if self.age >= self.lifespan:
             self.model.safe_remove_agent(self)
             return
+        
+        if self.diff_state != CD8DiffState.CD8TNAIVE:
+            self.activation_age += self.model.timestep
 
         # Determine if the naive cell is ready to be activated based on tumor proximity (TCR activation) and IL-2 concentration
         if self.diff_state == CD8DiffState.CD8TNAIVE:
@@ -318,30 +328,30 @@ class CD8TCell(Agent):
             # Normalize tumor signal (0 → 1)
             tumor_signal = N_tumor / len(neighbors) if neighbors else 0.0
 
-            if N_tumor == 0:
-                return
+            if N_tumor > 0:
 
-            local_IL2 = self.model.IL2_field[x, y]
-            mean_IL2 = np.mean(self.model.IL2_field) + 1e-12
+                local_IL2 = self.model.IL2_field[x, y]
+                mean_IL2 = np.mean(self.model.IL2_field) + 1e-12
 
-            IL2_signal = local_IL2 / (local_IL2 + mean_IL2)
-            # Activation probability (TCR and IL2-driven)
-            combined_signal = tumor_signal * (1 + P.k_cytokine_CD8 * IL2_signal)
+                IL2_signal = local_IL2 / (local_IL2 + mean_IL2)
+                # Activation probability (TCR and IL2-driven)
+                combined_signal = tumor_signal * (1 + P.k_cytokine_CD8 * IL2_signal)
 
-            p_activate = 1 - math.exp( -self.model.timestep * P.k_TCR_activation * combined_signal)
-            if random.random() < p_activate:
-                self.diff_state = CD8DiffState.CD8TACTIVATED
-                self.activation_age = 0.0
+                p_activate = 1 - math.exp( -self.model.timestep * P.k_TCR_activation * combined_signal)
+                if random.random() < p_activate:
+                    self.diff_state = CD8DiffState.CD8TACTIVATED
+                    self.activation_age = 0.0
 
         # Activated cell remains activated (driven by commitment delay) before differentiating
         if self.diff_state == CD8DiffState.CD8TACTIVATED:
-            self.activation_age += self.model.timestep
             self.model.IFNg_secretion_map[x, y] += P.IFNg_release * self.model.timestep
-
-            if self.activation_age > P.cd8_commitment_delay:
-                if random.random() < P.p_memory_diff:
+            if (self.activation_age > P.cd8_commitment_delay and not self.commitment_checked):
+                self.commitment_checked = True
+                r = random.random()
+                # The cell becomes a memory T cell with probability p_memory_diff, dies with probability p_death_diff, or remains activated otherwise.
+                if r < P.p_memory_diff:
                     self.diff_state = CD8DiffState.CD8TMEMORY
-                else: # If not being committed to memory, remove cell to represent activation-induced cell death of non-memory precursors
+                elif r < P.p_memory_diff + P.p_death_diff:
                     self.model.safe_remove_agent(self)
                     return
 
@@ -349,9 +359,9 @@ class CD8TCell(Agent):
         local_IL2 = self.model.IL2_field[x, y]  # (molecules/µm³)
         self.IL2_accum += local_IL2 * self.model.timestep
 
-        self.can_exhaust = False
-        if random.random() < P.how_exhausted:
-            self.can_exhaust = True
+        # Consume IL2 based on differentiation state
+        if self.diff_state != CD8DiffState.CD8TNAIVE: # All CD8 activated T cells will consume same amount of IL2
+            self.model.IL2_consumption_map[x, y] += (P.k_IL2_uptake * local_IL2 * self.model.timestep)
 
         # --- PD-1 upregulation with activation (tumor signal as a proxy for antigen stimulation) ---
         if self.can_exhaust:
@@ -413,8 +423,6 @@ class CD8TCell(Agent):
 
         # Check if we have enough IL-2 exposure AND enough time since last division
         # AND haven't exceeded division limit.
-        current_tick = self.model.schedule.time
-        ticks_since_last_div = current_tick - self.last_div_tick
 
         if self.exhaustion_state != CD8ExhaustionState.CD8TTERMINAL:
             
@@ -435,11 +443,13 @@ class CD8TCell(Agent):
                 max_div = P.TCD8_div_limit_memory
             else:
                 max_div = 0 # Cannot divide if not activated or memory cells
-
-            if (self.IL2_accum >= IL2_threshold
-                and ticks_since_last_div >= P.TCD8_div_Interval
-                and self.divisions_done < max_div):
-
+            
+            self.time_since_last_div += self.model.timestep
+            if (
+                self.IL2_accum >= IL2_threshold
+                and self.time_since_last_div >= P.TCD8_div_Interval
+                and self.divisions_done < max_div
+            ):
                 # Attempt to divide
                 self._divide_if_possible()
 
@@ -475,7 +485,7 @@ class CD8TCell(Agent):
     def _divide_if_possible(self):
         """
         Spawn a daughter at a random empty Moore neighbor, reset IL-2 accumulation,
-        update division count & last_div_tick.  If no empty neighbor, do nothing
+        update division count & time_since_last_div.  If no empty neighbor, do nothing
         (contact inhibition)—the exposure remains accumulated (could divide next tick).
         """
         if self.diff_state == CD8DiffState.CD8TNAIVE:
@@ -491,14 +501,14 @@ class CD8TCell(Agent):
         daughter = CD8TCell(
             self.model._next_id(),
             self.model,
-            new_pos,
             diff_state=self.diff_state
         )
-
+        
         if hasattr(self, "exhaustion_state"):
             daughter.exhaustion_state = self.exhaustion_state
             daughter.exhaustion_level = self.exhaustion_level
             daughter.exhaustion_signal = self.exhaustion_signal
+            daughter.can_exhaust = self.can_exhaust
             daughter.pd1 = self.pd1
 
         self.model.grid.place_agent(daughter, new_pos)
@@ -507,7 +517,7 @@ class CD8TCell(Agent):
         # Reset parent's IL-2 accumulator and record division
         self.IL2_accum = 0.0
         self.divisions_done += 1
-        self.last_div_tick = self.model.schedule.time
+        self.time_since_last_div = 0.0
 
     def _choose_weighted_position(self, neighbors):
         weights = []
@@ -521,7 +531,7 @@ class CD8TCell(Agent):
             n_tumor = 0
 
             # Looks around candidate positions
-            local_neigh = self.model.grid.get_neighborhood((nx, ny), moore=True, include_center=True)
+            local_neigh = self.model.grid.get_neighborhood((nx, ny), moore=True, include_center=True, radius = 2)
 
             for tx, ty in local_neigh:
                 if not (0 <= tx < self.model.width and 0 <= ty < self.model.height):
@@ -543,7 +553,7 @@ class CD8TCell(Agent):
 
     def _migrate(self):
         """
-        Move towards IFNg field if high concentration, otherwise random:
+        Move towards tumor concentration, otherwise random:
          If no empty neighbors, do not move.
         """
         if not hasattr(self, "pos") or self.pos is None:
@@ -598,8 +608,8 @@ class CD8TCell(Agent):
         cancer_neigh = self.model.grid.get_neighborhood((tx, ty), moore=True, include_center=False)
         
         N_CD8 = 0
-        N_MDSC = 0
-        N_M2 = 0
+        # N_MDSC = 0
+        # N_M1 = 0
         N_totNeighbor = len(cancer_neigh)
 
         for nx, ny in cancer_neigh:
@@ -610,19 +620,18 @@ class CD8TCell(Agent):
 
             if isinstance(occupant, CD8TCell) and occupant.alive:
                 N_CD8 += 1
-            elif isinstance(occupant, MDSC) and occupant.alive:
-                N_MDSC += 1
-            elif isinstance(occupant, Macrophage) and occupant.alive and occupant.subtype == MacSubtype.M2:
-                N_M2 += 1  # M2 macrophages contribute to suppression
+            # elif isinstance(occupant, MDSC) and occupant.alive:
+            #     N_MDSC += 1
+            # elif isinstance(occupant, Macrophage) and occupant.alive and occupant.subtype == MacSubtype.M1:
+            #     N_M1 += 1  # M1 macrophages contribute to tumor killing
 
         frac_CD8 = N_CD8 / float(N_totNeighbor) if N_totNeighbor > 0 else 0.0
-        frac_M2 = N_M2 / float(N_totNeighbor) if N_totNeighbor > 0 else 0.0
+        print("Fraction of CD8: ", frac_CD8)
+        # frac_M1 = N_M1 / float(N_totNeighbor) if N_totNeighbor > 0 else 0.0
 
         # ---- Local suppression ----
         x, y = self.pos
         # local_Arg1 = self.model.Arg1_field[x, y]
-
-        # print(f"Mean: {np.mean(self.model.Arg1_field)}, Max: {np.max(self.model.Arg1_field)}")
 
         # local_NO   = self.model.NO_field[x, y]
 
@@ -632,33 +641,31 @@ class CD8TCell(Agent):
 
         # H_NO   = local_NO   / (local_NO   + P.IC50_NO_TCD8)
 
-        H_MDSC = N_MDSC / (N_MDSC**P.n_hill_MDSC_TCD8 + P.k_hill_MDSC_TCD8**P.n_hill_MDSC_TCD8)
+        # H_MDSC = N_MDSC / (N_MDSC**P.n_hill_MDSC_TCD8 + P.k_hill_MDSC_TCD8**P.n_hill_MDSC_TCD8)
 
         H_PD1 = self.exhaustion_level
-        # print(f"MDSC: {H_MDSC}")
-        # print(f"Arg1: {H_Arg1}")
-        # print(f"NO: {H_NO}")
-        # print(f"PD1: {H_PD1}")
+        print("PD1 exhaustion_level:", H_PD1)
 
-        # ---- Killing rate ----
-        alpha = (frac_CD8
-            * frac_M2
+        # # ---- Killing rate ----
+        p_kill = (frac_CD8
+            # * frac_M1
             # * (1.0 - H_MDSC)
             # * (1.0 - H_Arg1)
-            # * (1.0 - H_NO)
-            * (1.0 - H_PD1)
         )
-        # print(f"Killing rate: {alpha}")
+
+        if P.how_exhausted > 0:
+            p_kill *= (1-H_PD1)
+
         if self.diff_state == CD8DiffState.CD8TACTIVATED:
-            alpha *= 2.0
+            p_kill *= 2.0
 
         if self.exhaustion_state == CD8ExhaustionState.CD8TTERMINAL:
-            alpha *= 0.25
+            p_kill *= 0.25
         
         # print(f"Effective killing rate: {alpha}")
-        p_kill = 1.0 - math.exp(-self.model.timestep * alpha)
+        p_kill = min(p_kill, 1)
 
-        # print(f"Probability of killing a cancer cell {p_kill}")
+        print(f"Probability of killing a cancer cell {p_kill}")
 
         if random.random() < p_kill:
             target.alive = False
@@ -705,7 +712,7 @@ class CD4TCell(Agent):
         self.divisions_done = 0
         # Minimum number of ticks between divisions (24h / dt)
         #self.min_div_ticks = int((24 * 3600.0) / self.model.dt)
-        self.last_div_tick = -9999  # far in the past so first division can happen after interval
+        self.time_since_last_div = 0.0
 
         # 4) Alive flag
         self.alive = True
@@ -717,6 +724,7 @@ class CD4TCell(Agent):
 
         # ---- 1) Age-based death ----
         self.age += self.model.timestep
+
         if self.age >= self.lifespan:
             self.model.safe_remove_agent(self)
             return
@@ -739,36 +747,51 @@ class CD4TCell(Agent):
                     if occupant.subtype == MacSubtype.M1:
                         N_M1 += 1
 
-
             # Normalize M1 signal (0 → 1)
             signal_M1 = N_M1 / len(neighbors) if neighbors else 0.0
 
-            if N_M1 == 0:
-                return
+            if N_M1 > 0:
 
-            local_IL12 = self.model.IL12_field[x, y]
-            mean_IL12 = np.mean(self.model.IL12_field) + 1e-12
+                mean_IL12 = np.mean(self.model.IL12_field) + 1e-12
+                local_IL12 = self.model.IL12_field[x, y]
+                IL12_signal = local_IL12 / (local_IL12 + mean_IL12)
+                combined_signal = signal_M1 * (1 + P.k_cytokine_CD4 * IL12_signal)
 
-            IL12_signal = local_IL12 / (local_IL12 + mean_IL12)
-            combined_signal = signal_M1 * (1 + P.k_cytokine_CD4 * IL12_signal)
+                p_activate = 1 - math.exp( - self.model.timestep * P.k_TCR_activation * combined_signal)
 
-            p_activate = 1 - math.exp( - self.model.timestep * P.k_TCR_activation * combined_signal)
+                if random.random() < p_activate:
+                    self.diff_state = CD4DiffState.CD4TACTIVATED
+                    self.activation_age = 0.0
 
-            if random.random() < p_activate:
-                self.diff_state = CD4DiffState.CD4TACTIVATED
-                self.activation_age = 0.0
+        # Consume IL2 based on differentiation state
+        local_IL2 = self.model.IL2_field[x, y]
+        local_IL12 = self.model.IL12_field[x, y]
+        local_Arg1 = self.model.Arg1_field[x, y]
+        # Consume IL2 based on differentiation state
+        if self.diff_state == CD4DiffState.CD4TACTIVATED or self.diff_state == CD4DiffState.CD4THELPER:
+            self.model.IL2_consumption_map[x, y] += (P.k_IL2_uptake * local_IL2 * self.model.timestep)
+            self.model.IL12_consumption_map[x, y] += (2*P.k_IL12_uptake * local_IL12 * self.model.timestep)
+        elif self.diff_state == CD4DiffState.CD4TREG: # Higher IL2 consumption for Tregs
+            self.model.IL2_consumption_map[x, y] += (2*P.k_IL2_uptake * local_IL2 * self.model.timestep)
+            self.model.IL12_consumption_map[x, y] += (P.k_IL12_uptake * local_IL12 * self.model.timestep)
+        if self.diff_state != CD4DiffState.CD4TNAIVE:
+            self.activation_age += self.model.timestep
 
         # Activated cell remains activated (driven by commitment delay) before differentiating
         if self.diff_state == CD4DiffState.CD4TACTIVATED:
-            self.activation_age += self.model.timestep
-
             if self.activation_age > P.cd4_commitment_delay:
                 local_TGFb = self.model.TGFb_field[x, y]
-                mean_TGFb = np.mean(self.model.TGFb_field) + 1e-12
-                p_Treg = local_TGFb / (local_TGFb + mean_TGFb) # Calculates relative TGFB concentration
+                p_Treg = local_TGFb / (local_TGFb + P.EC50_TGFb_Treg)
 
-                if random.random() < p_Treg:
+                r = random.random()
+
+                if r < P.p_contraction:
+                    self.model.safe_remove_agent(self)
+                    return
+
+                elif r < P.p_contraction + p_Treg:
                     self.diff_state = CD4DiffState.CD4TREG
+
                 else:
                     self.diff_state = CD4DiffState.CD4THELPER
 
@@ -778,16 +801,20 @@ class CD4TCell(Agent):
         Arg1_signal = local_Arg1 / (local_Arg1 + P.EC50_Arg1_Treg)
 
         local_IL2 = self.model.IL2_field[x, y]
-        mean_IL2 = np.mean(self.model.IL2_field) + 1e-12
-
-        IL2_signal = local_IL2 / (local_IL2 + mean_IL2)
-
-        current_tick = self.model.schedule.time
-        ticks_since_div = current_tick - self.last_div_tick
+        self.time_since_last_div += self.model.timestep
 
         if self.diff_state == CD4DiffState.CD4THELPER:
+            IL2_signal = local_IL2 / (local_IL2 + P.EC50_IL2_Helper)
+            print("="*3)
+            print("IL2 signal for Thelper: ", IL2_signal)
+            if self.activation_age > 10*24*3600:
+                p_death = 1 - math.exp(-P.TCD4_death_rate * self.model.timestep)
+                if random.random() < p_death:
+                    self.model.safe_remove_agent(self)
+                    return
             p_div = 1 - math.exp(-P.k_TCD4_div * self.model.timestep * IL2_signal)
-            if (ticks_since_div >= P.TCD4_div_Interval
+            print("Proliferation probability for Thelper: ",p_div)
+            if (self.time_since_last_div >= P.TCD4_div_Interval
                 and self.divisions_done < P.CD4_DIVISION_LIMIT
                 and random.random() <= p_div
                 ):
@@ -795,9 +822,20 @@ class CD4TCell(Agent):
                 self._divide_if_possible()
                 
         elif self.diff_state == CD4DiffState.CD4TREG:
+            IL2_signal = local_IL2 / (local_IL2 + P.EC50_IL2_Treg)
+            print("="*3)
+            print("IL2 signal for Treg: ", IL2_signal)
+            if self.activation_age > 20*24*3600:
+                p_death = 1 - math.exp(-P.TCD4_death_rate * self.model.timestep)
+                if random.random() < p_death:
+                    self.model.safe_remove_agent(self)
+                    return
+                
             # Arg1-induced Treg proliferation
+            print("Arg1 signal for Treg: ", Arg1_signal)
             p_div = 1 - math.exp( -P.k_Arg1_Treg_div * self.model.timestep * Arg1_signal * IL2_signal)
-            if (ticks_since_div >= P.TCD4_div_Interval
+            print("Proliferation probability for Treg: ",p_div)
+            if (self.time_since_last_div >= P.TCD4_div_Interval
                 and self.divisions_done < P.CD4_DIVISION_LIMIT
                 and random.random() <= p_div
                 ):
@@ -807,7 +845,7 @@ class CD4TCell(Agent):
         # ---- 4) Secretion ----
         if self.diff_state == CD4DiffState.CD4TACTIVATED:
             # weak early secretion
-            self.model.IL2_secretion_map[x, y] += 0.5 * P.IL2_release * self.model.timestep
+            self.model.IL2_secretion_map[x, y] += 0.25 * P.IL2_release * self.model.timestep
         elif self.diff_state == CD4DiffState.CD4THELPER:
             # Thelper secretes IL-2 and IFNg
             self.model.IL2_secretion_map[x, y] += P.IL2_release * self.model.timestep
@@ -837,15 +875,17 @@ class CD4TCell(Agent):
         neighbors = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False)
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
         if not empty:
-            return  # no space to divide
+            return
 
         new_pos = random.choice(empty)
-        daughter = CD4TCell(self.model._next_id(), self.model, new_pos, diff_state=self.diff_state)
+        daughter = CD4TCell(self.model._next_id(), self.model, diff_state = self.diff_state)
+        daughter.activation_age = max(self.activation_age, P.cd4_commitment_delay)
+        daughter.divisions_done = self.divisions_done
         self.model.grid.place_agent(daughter, new_pos)
         self.model.schedule.add(daughter)
 
         self.divisions_done += 1
-        self.last_div_tick = self.model.schedule.time
+        self.time_since_last_div = 0.0
    
     def _choose_weighted_position(self, neighbors, field):
         weights = []
@@ -877,7 +917,7 @@ class CD4TCell(Agent):
         empty = [pos for pos in neighbors if self.model.grid.is_cell_empty(pos)]
         if not empty:
             return
-        
+
         new_pos = self._choose_weighted_position(empty, self.model.IL2_field)
         self.model.grid.move_agent(self, new_pos)
 
@@ -911,10 +951,13 @@ class MDSC(Agent):
             self.model.safe_remove_agent(self)
             return
 
-        # ---- 2) Secretion ----
+        # ---- 2) Secretion and consumption ----
         self.model.Arg1_secretion_map[x, y] += P.Arg1_release * self.model.timestep
         self.model.IL10_secretion_map[x, y] += P.IL10_release_M * self.model.timestep
         self.model.NO_secretion_map[x, y] += P.NO_release * self.model.timestep
+
+        local_CCL2 = self.model.CCL2_field[x, y]
+        self.model.CCL2_consumption_map[x, y] += (P.k_CCL2_uptake * local_CCL2 * self.model.timestep)
 
         # ---- 3) Migration (random walk) ----
         if random.random() < P.MDSC_moveProb:
@@ -1013,6 +1056,7 @@ class Macrophage(Agent):
             # M1 secretes IL-12 and IFNγ
             self.model.IL12_secretion_map[x, y] += P.IL12_release * self.model.timestep
             self.model.IFNg_secretion_map[x, y] += P.IFNg_release * self.model.timestep
+            self.model.NO_secretion_map[x, y] += P.NO_release * self.model.timestep
         else:
             # M2 secretes VEGFA, TGFβ and IL-10
             self.model.VEGFA_secretion_map[x, y] += P.VEGFA_release_M2 * self.model.timestep
