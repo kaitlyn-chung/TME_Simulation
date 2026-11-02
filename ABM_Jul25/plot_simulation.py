@@ -6,6 +6,7 @@ Enhanced ABM runner with detailed step-by-step output and monitoring.
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.animation as animation
+from matplotlib.colors import LogNorm
 import numpy as np
 import time
 import os
@@ -118,7 +119,15 @@ def print_molecular_summary(model):
     """Print summary of molecular concentrations."""
     print(f"\nMOLECULAR CONCENTRATIONS (mean ± std):")
     
-    molecules = ['Arg1', 'CCL2', 'IFNg', 'IL2', 'IL10', 'IL12', 'NO', 'TGFb', 'VEGFA']
+    molecules = ['Arg1', 
+                 'CCL2', 
+                 'IFNg', 
+                 'IL2', 
+                 'IL10', 
+                 'IL12', 
+                #  'NO', 
+                 'TGFb', 
+                 'VEGFA']
     
     for mol in molecules:
         field = getattr(model, f"{mol}_field")
@@ -339,7 +348,8 @@ def capture_cytokine_fields(model):
     signals = [
         'Arg1', 'CCL2', 'IFNg',
         'IL2', 'IL10', 'IL12',
-        'NO', 'TGFb', 'VEGFA'
+        # 'NO',
+        'TGFb', 'VEGFA'
     ]
 
     snapshot = {}
@@ -450,7 +460,7 @@ def plot_cytokine_concentrations(model, output_dir):
         ('IL2', 'IL-2'),
         ('IL10', 'IL-10'),
         ('IL12', 'IL-12'),
-        ('NO', 'Nitric Oxide'),
+        # ('NO', 'Nitric Oxide'),
         ('TGFb', 'TGF-β'),
         ('VEGFA', 'VEGF-A')
     ]
@@ -466,12 +476,19 @@ def plot_cytokine_concentrations(model, output_dir):
             signal_grid = getattr(model, f"{signal_name}_field")
             
             # Use log scale for better visualization if values span many orders of magnitude
-            signal_max = np.max(signal_grid)
-            positive_vals = signal_grid[signal_grid > 0]
+            signal_max = np.nanmax(signal_grid)
+
+            positive_vals = signal_grid[
+                np.isfinite(signal_grid) &
+                (signal_grid > 0)
+            ]
+
             if positive_vals.size == 0:
-                signal_min = signal_max * 1e-10
+                signal_min = 1e-30
+                signal_max = max(signal_max, 1e-30)
             else:
-                signal_min = np.max([np.min(positive_vals), signal_max * 1e-10])
+                signal_min = max(np.min(positive_vals), 1e-30)
+                signal_max = max(signal_max, signal_min * 10)
             
             print(
                 f"{signal_name}: "
@@ -484,37 +501,8 @@ def plot_cytokine_concentrations(model, output_dir):
             if signal_max > 0:
                 # Use log-normalized colormap if there's significant range
                 if signal_max / signal_min > 100:
-                    from matplotlib.colors import LogNorm
-                    im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis", 
-                                 norm=LogNorm(vmin=signal_min, vmax=signal_max))
-                else:
-                    im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis",
-                                 vmin=0, vmax=signal_max)
-            else:
-                im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis")
-
-    for idx, (signal_name, display_name) in enumerate(signals):
-        ax = axes[idx]
-        
-        if hasattr(model, f"{signal_name}_field"):
-            signal_grid = getattr(model, f"{signal_name}_field")
-            
-            # Use log scale for better visualization if values span many orders of magnitude
-            signal_max = np.nanmax(signal_grid)
-            positive_vals = signal_grid[
-                np.isfinite(signal_grid) &
-                (signal_grid > 0)
-            ]
-            if positive_vals.size == 0:
-                signal_min = signal_max * 1e-10
-            else:
-                signal_min = np.max([np.min(positive_vals), signal_max * 1e-10])
-            
-            if signal_max > 0:
-                # Use log-normalized colormap if there's significant range
-                if signal_max / signal_min > 100:
-                    from matplotlib.colors import LogNorm
-                    im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis", 
+                    safe_grid = np.maximum(signal_grid, signal_min)
+                    im = ax.imshow(safe_grid.T, origin="lower", cmap="viridis", 
                                  norm=LogNorm(vmin=signal_min, vmax=signal_max))
                 else:
                     im = ax.imshow(signal_grid.T, origin="lower", cmap="viridis",
@@ -529,11 +517,6 @@ def plot_cytokine_concentrations(model, output_dir):
                 np.isnan(signal_grid).sum(),
                 np.isinf(signal_grid).sum()
             )
-            
-            # Add colorbar
-            cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            cbar.set_label('Concentration\n(molecules/grid)', fontsize=8)
-            
             
             # Add colorbar
             cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
@@ -901,7 +884,7 @@ def animate_individual_cytokines(
         ('IL2', 'IL-2'),
         ('IL10', 'IL-10'),
         ('IL12', 'IL-12'),
-        ('NO', 'Nitric Oxide'),
+        # ('NO', 'Nitric Oxide'),
         ('TGFb', 'TGF-β'),
         ('VEGFA', 'VEGF-A')
     ]
