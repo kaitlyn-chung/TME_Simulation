@@ -942,7 +942,7 @@ class MDSC(Agent):
         # ---- 2) Secretion and consumption ----
         self.model.Arg1_secretion_map[x, y] += P.Arg1_release * self.model.timestep
         self.model.IL10_secretion_map[x, y] += P.IL10_release_M * self.model.timestep
-        self.model.NO_secretion_map[x, y] += P.NO_release * self.model.timestep
+        # self.model.NO_secretion_map[x, y] += P.NO_release * self.model.timestep
 
         local_CCL2 = self.model.CCL2_field[x, y]
         self.model.CCL2_consumption_map[x, y] += (P.k_CCL2_uptake * local_CCL2 * self.model.timestep)
@@ -1044,7 +1044,7 @@ class Macrophage(Agent):
             # M1 secretes IL-12 and IFNγ
             self.model.IL12_secretion_map[x, y] += P.IL12_release * self.model.timestep
             self.model.IFNg_secretion_map[x, y] += P.IFNg_release * self.model.timestep
-            self.model.NO_secretion_map[x, y] += P.NO_release * self.model.timestep
+            # self.model.NO_secretion_map[x, y] += P.NO_release * self.model.timestep
         else:
             # M2 secretes VEGFA, TGFβ and IL-10
             self.model.VEGFA_secretion_map[x, y] += P.VEGFA_release_M2 * self.model.timestep
@@ -1127,7 +1127,7 @@ class Macrophage(Agent):
                 ## Compute probability of killing
                 local_IL10 = self.model.IL10_field[x, y]
                 
-                H_IL10 = 1.0 / (1.0 + (P.IC50_IL10_phago / local_IL10)**P.n_hill_IL10_phago) # Hill-inhibition of phagocytosis by IL10
+                H_IL10 = 1.0 / (1.0 + (P.IC50_IL10_phago / max(local_IL10, 1e-12)) ** P.n_hill_IL10_phago) # Prevent division by 0
                 alpha = P.k_M1_phago * (N_M1 / float(N_totNeighbor)) * (1.0 - H_IL10)
                 p_kill = 1.0 - math.exp(-self.model.timestep * alpha)
                 
