@@ -141,11 +141,6 @@ def update_diffusion_over_timestep(
     source_rate = secretion_map / dT
     sink_rate = consumption_map / dT
 
-    if n_steps > 100:
-      print(
-      f"D={D:.3e}, dT={dT}, dt={dt:.3e}, n_steps={n_steps}",
-      flush=True
-      )
     # Perform that many Euler‐march diffusion updates
     for _ in range(n_steps):
         field = update_diffusion(
