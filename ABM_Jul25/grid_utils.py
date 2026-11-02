@@ -91,7 +91,7 @@ def update_diffusion(
     consumption_map: np.ndarray,
     D: float,
     decay: float,
-    dt: float = P.delta_t
+    dt: float = P.delta_t_diffusion
     ) -> np.ndarray:
     """
     Perform a single‐time‐step Euler update of the field array using:
@@ -125,7 +125,7 @@ def update_diffusion_over_timestep(
     consumption_map: np.ndarray,
     D: float,
     decay: float,
-    dt: float = P.delta_t,
+    dt: float = P.delta_t_diffusion,
     dT: float = P.timestep
     ) -> np.ndarray:
     """
@@ -137,15 +137,21 @@ def update_diffusion_over_timestep(
     n_steps = int(np.ceil(dT / dt))
     dt = dT / n_steps
 
-    scaled_secretion = secretion_map / n_steps
-    scaled_consumption = consumption_map / n_steps
-    
+    # Convert the secretion and consumption maps from total mass over dT to rates per second
+    source_rate = secretion_map / dT
+    sink_rate = consumption_map / dT
+
+    if n_steps > 100:
+      print(
+      f"D={D:.3e}, dT={dT}, dt={dt:.3e}, n_steps={n_steps}",
+      flush=True
+      )
     # Perform that many Euler‐march diffusion updates
     for _ in range(n_steps):
         field = update_diffusion(
             field,
-            secretion_map=scaled_secretion,
-            consumption_map=scaled_consumption,
+            secretion_map=source_rate,
+            consumption_map=sink_rate,
             D=D,
             decay=decay,
             dt=dt,

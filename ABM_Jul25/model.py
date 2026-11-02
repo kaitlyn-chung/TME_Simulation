@@ -113,7 +113,7 @@ class ABM_Model(Model):
         self.IL2_field     = np.zeros((width, height))
         self.IL10_field     = np.zeros((width, height))
         self.IL12_field     = np.zeros((width, height))
-        self.NO_field     = np.zeros((width, height))
+        # self.NO_field     = np.zeros((width, height))
         #self.O2_field     = np.zeros((width, height))
         self.TGFb_field     = np.zeros((width, height))
         self.VEGFA_field     = np.zeros((width, height))
@@ -125,7 +125,7 @@ class ABM_Model(Model):
         self.IL2_secretion_map     = np.zeros((width, height))
         self.IL10_secretion_map     = np.zeros((width, height))
         self.IL12_secretion_map     = np.zeros((width, height))
-        self.NO_secretion_map     = np.zeros((width, height))
+        # self.NO_secretion_map     = np.zeros((width, height))
         #self.O2_secretion_map     = np.zeros((width, height))
         self.TGFb_secretion_map     = np.zeros((width, height))
         self.VEGFA_secretion_map     = np.zeros((width, height))
@@ -137,7 +137,7 @@ class ABM_Model(Model):
         self.IL2_consumption_map     = np.zeros((width, height))
         self.IL10_consumption_map     = np.zeros((width, height))
         self.IL12_consumption_map     = np.zeros((width, height))
-        self.NO_consumption_map     = np.zeros((width, height))
+        # self.NO_consumption_map     = np.zeros((width, height))
         #self.O2_consumption_map     = np.zeros((width, height))
         self.TGFb_consumption_map     = np.zeros((width, height))
         self.VEGFA_consumption_map     = np.zeros((width, height))
@@ -226,7 +226,7 @@ class ABM_Model(Model):
         self.IL2_secretion_map[:]      = 0.0
         self.IL10_secretion_map[:]     = 0.0
         self.IL12_secretion_map[:]     = 0.0
-        self.NO_secretion_map[:]       = 0.0
+        # self.NO_secretion_map[:]       = 0.0
         #self.O2_field[:]     = 0.0
         self.TGFb_secretion_map[:]     = 0.0
         self.VEGFA_secretion_map[:]    = 0.0
@@ -237,7 +237,7 @@ class ABM_Model(Model):
         self.IL2_consumption_map[:]      = 0.0
         self.IL10_consumption_map[:]     = 0.0
         self.IL12_consumption_map[:]     = 0.0
-        self.NO_consumption_map[:]       = 0.0
+        # self.NO_consumption_map[:]       = 0.0
         #self.O2_consumption_map[:]     = 0.0
         self.TGFb_consumption_map[:]     = 0.0
         self.VEGFA_consumption_map[:]    = 0.0
@@ -349,7 +349,7 @@ class ABM_Model(Model):
             self.Arg1_consumption_map,
             P.D_Arg1,
             P.lambda_Arg1,
-            P.delta_t,
+            P.delta_t_diffusion,
             self.timestep
         )
         # CCL2
@@ -359,7 +359,7 @@ class ABM_Model(Model):
             self.CCL2_consumption_map,
             P.D_CCL2,
             P.lambda_CCL2,
-            P.delta_t,
+            P.delta_t_diffusion,
             self.timestep
         )
         # IFNg
@@ -369,7 +369,7 @@ class ABM_Model(Model):
             self.IFNg_consumption_map,
             P.D_IFNg,
             P.lambda_IFNg,
-            P.delta_t,
+            P.delta_t_diffusion,
             self.timestep
         )
         # IL2
@@ -379,7 +379,7 @@ class ABM_Model(Model):
             self.IL2_consumption_map,
             P.D_IL2,
             P.lambda_IL2,
-            P.delta_t,
+            P.delta_t_diffusion,
             self.timestep
         )
         # IL10
@@ -389,7 +389,7 @@ class ABM_Model(Model):
             self.IL10_consumption_map,
             P.D_IL10,
             P.lambda_IL10,
-            P.delta_t,
+            P.delta_t_diffusion,
             self.timestep
         )
         # IL12
@@ -399,19 +399,19 @@ class ABM_Model(Model):
             self.IL12_consumption_map,
             P.D_IL12,
             P.lambda_IL12,
-            P.delta_t,
+            P.delta_t_diffusion,
             self.timestep
         )
         # NO
-        self.NO_field = update_diffusion_over_timestep(
-            self.NO_field,
-            self.NO_secretion_map,
-            self.NO_consumption_map,
-            P.D_NO,
-            P.lambda_NO,
-            P.delta_t,
-            self.timestep
-        )
+        # self.NO_field = update_diffusion_over_timestep(
+        #     self.NO_field,
+        #     self.NO_secretion_map,
+        #     self.NO_consumption_map,
+        #     P.D_NO,
+        #     P.lambda_NO,
+        #     P.delta_t_diffusion,
+        #     self.timestep
+        # )
         # TGFb
         self.TGFb_field = update_diffusion_over_timestep(
             self.TGFb_field,
@@ -419,7 +419,7 @@ class ABM_Model(Model):
             self.TGFb_consumption_map,
             P.D_TGFb,
             P.lambda_TGFb,
-            P.delta_t,
+            P.delta_t_diffusion,
             self.timestep
         )
         # VEGFA
@@ -429,7 +429,7 @@ class ABM_Model(Model):
             self.VEGFA_consumption_map,
             P.D_VEGFA,
             P.lambda_VEGFA,
-            P.delta_t,
+            P.delta_t_diffusion,
             self.timestep
         )
         # O2
@@ -439,7 +439,7 @@ class ABM_Model(Model):
         #     self.O2_consumption_map,
         #     P.D_O2,
         #     P.lambda_O2,
-        #     P.delta_t,
+        #     P.delta_t_diffusion,
         #     self.timestep
         # )
 

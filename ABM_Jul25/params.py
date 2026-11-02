@@ -11,6 +11,9 @@ grid_height = 100
 # Time step (delta t) for PDE updates
 delta_t = 1
 
+# Time step (delta t) for diffusion updates
+delta_t_diffusion = 60
+
 # Time step for ABM update
 timestep = 21600 # sec = 6h
 
