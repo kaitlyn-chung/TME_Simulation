@@ -30,13 +30,17 @@ This repo also contains scripts related to running a Sobol sensitivity analysis,
 * params.py - Defines time steps for both cytokines and agents, and parameter values that are used to scale agent and cytokine behavior. Values are adapter from literature or previous established by the original model.
 * plot_simulations.py - Defines functions for plotting and visualizing .gifs of the tumor evolving over time, population and cytokine trajectories, and cell_counts.csv that tabulate population over time.
 * scenarios.py - Contains scenarios and checks for custom scenarios.
-* sensitivity_analysis.py - Global sensitivity analysis using the SALib package in Python to determine variance in population fractions using the Sobol method.
+* sensitivity_analysis.py - Global sensitivity analysis using the SALib package in Python to determine variance in population fractions using the Sobol method. (These go with .slurm files that are meant to parallelize and run scripts on HPC).
+* environment.yml - Contains all the environments necessary to run these Python scripts.
 * runABM.py - Main runner.
   
 **ABM_Validation:**
 
 * abm_smc_tme.py - ABM-SMC framework written with Python's pyABC.
 * slurm_abc.sh - Runner for `abm_smc_tme.py` for use on HPC.
-* environment.yml - Contains all the environments necessary to run these Python scripts.
+
+_Many scripts were created with the help of Copilot and Claude._
 
 The script can be run from the terminal. You will be prompted to enter your scenario before the simulation starts.
+1. Activate the environment.
+2. `PYTHONPATH=$(pwd) time python -m ABM_Jul25.runABM` where pwd = './TME_Simulation'
