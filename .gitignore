@@ -8,8 +8,9 @@
 
 # outputs
 **/simulation_output/
-**/sensitivity_results/
-**/logs/
+**/sensitivity_results*/
+**/logs*/
+**/sensitivity_analysis_results/
 
 # jupyter notebook checkpoints
 **/.ipynb_checkpoints/
@@ -24,3 +25,5 @@
 # any slurm outputs
 **/slurm-*.out
 
+
+**/scenarios.py
