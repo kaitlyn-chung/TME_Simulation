@@ -22,7 +22,9 @@ There are also cytokines that evolve with the ABM, including
 * VEGFA.
 
 This repo also contains scripts related to running a Sobol sensitivity analysis, which was used in factor prioritization of parameters. These parameters were later fed into an ABC-SMC simulation, a Bayesian inference method, to fine-tune them such that the values reflect actual tumor biology based on fractional counts from [Bassez et. al.](https://www.nature.com/articles/s41591-021-01323-8).
-ABM_Jul25:
+
+**ABM_Jul25:**
+
 * grid_utils.py - Defines the Laplacian and diffusion update functions.
 * model.py - Defines functions that initialize and updates cytokine fields and control agent recruitment to the grid.
 * params.py - Defines time steps for both cytokines and agents, and parameter values that are used to scale agent and cytokine behavior. Values are adapter from literature or previous established by the original model.
@@ -30,7 +32,9 @@ ABM_Jul25:
 * scenarios.py - Contains scenarios and checks for custom scenarios.
 * sensitivity_analysis.py - Global sensitivity analysis using the SALib package in Python to determine variance in population fractions using the Sobol method.
 * runABM.py - Main runner.
-ABM_Validation:
+  
+**ABM_Validation:**
+
 * abm_smc_tme.py - ABM-SMC framework written with Python's pyABC.
 * slurm_abc.sh - Runner for `abm_smc_tme.py` for use on HPC.
 * environment.yml - Contains all the environments necessary to run these Python scripts.
