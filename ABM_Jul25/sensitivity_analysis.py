@@ -62,94 +62,78 @@ import ABM_Jul25.params as P
 
 PARAM_SPECS = [
 
-    # --- Cancer cell kinetics ---
-    ('CancerCell_stemGrowthRate',      'centered', 0.5,  0.0,  None, False),
-    ('CancerCell_asymDivProb',         'centered', 0.15, 0.7,  1.0,  False),
-    ('CancerCell_progGrowthRate',      'centered', 0.5,  0.0,  None, False),
-    ('CancerCell_progDivMax',          'centered', 0.5,  2,    15,   True),
-    ('CancerCell_senescentDeathRate',  'centered', 0.5,  0.0,  None, False),
-    ('CancerCell_stemMoveProb',        'centered', 0.3,  0.0,  1.0,  False),
+    # --- Cancer ---
+    ('CancerCell_stemGrowthRate',      'centered', 1.0, 0.0, None, False),
+    ('CancerCell_asymDivProb',         'centered', 0.3, 0.0, 1.0, False),
+    ('CancerCell_progGrowthRate',      'centered', 1.0, 0.0, None, False),
+    ('CancerCell_progDivMax',          'centered', 1.0, 2, 15, True),
+    ('CancerCell_senescentDeathRate',  'centered', 1.0, 0.0, None, False),
+    ('CancerCell_stemMoveProb',        'centered', 0.5, 0.0, 1.0, False),
+    ('CancerCell_MoveProb',            'centered', 0.5, 0.0, 1.0, False),
 
-    # --- CD8 T cell kinetics ---
-    ('cd8_commitment_delay',           'centered', 0.5,  0.0,  None, False),
+    # --- CD8 ---
+    ('cd8_commitment_delay',           'centered', 1.0, 0.0, None, False),
+    ('p_memory_diff',                  'centered', 1.0, 0.0, 1.0, False),
+    ('TCD8_div_Interval',              'centered', 1.0, 0.0, None, False),
+    ('TCD8_div_limit_effector',        'centered', 1.0, 2, 20, True),
+    ('TCD8_div_limit_memory',          'centered', 1.0, 1, 10, True),
 
-    # current = 0.05, explore around 0.20
-    ('p_memory_diff',                  'shifted',  0.20, 0.5,  0.0,  1.0, False),
+    ('k_TCR_activation',               'centered', 1.0, 0.0, None, False),
+    ('k_cytokine_CD8',                 'centered', 1.0, 0.0, None, False),
 
-    ('TCD8_prolif_IL2th',              'centered', 0.5,  0.0,  None, False),
-    ('TCD8_div_Interval',              'centered', 0.5,  0.0,  None, False),
-    ('TCD8_div_limit_effector',        'centered', 0.5,  2,    20,   True),
-    ('TCD8_div_limit_memory',          'centered', 0.5,  1,    10,   True),
+    ('k_hill_MDSC_TCD8',               'centered', 1.0, 1, 6, True),
 
-    # current = 1e-4, explore one log fold up
-    ('k_TCR_activation',               'shifted',  1e-3, 1.0,  0.0,  None, False),
+    ('TCD8_kill_cooldown',             'centered', 1.0, 0.0, None, False),
+    ('TCD8_moveProb',                  'centered', 1.0, 0.0, 1.0, False),
 
-    # current = 1e-5, explore one log fold up
-    ('k_cytokine_CD8',                 'shifted',  1e-4, 1.0,  0.0,  None, False),
+    # --- CD4 ---
+    ('cd4_commitment_delay',           'centered', 1.0, 0.0, None, False),
+    ('TCD4_Treg_frac',                 'centered', 1.0, 0.0, 1.0, False),
+    ('k_TCD4_div',                     'centered', 1.0, 0.0, None, False),
 
-    ('k_hill_MDSC_TCD8',               'centered', 0.5,  1,    6,    True),
+    ('TCD4_k_Th_diff_Treg',            'centered', 1.0, 0.0, None, False),
 
-    ('TCD8_kill_cooldown',             'centered', 0.5,  0.0,  None, False),
+    ('TCD4_div_Interval',              'centered', 1.0, 0.0, None, False),
+    ('k_Arg1_Treg_div',                'centered', 1.0, 0.0, None, False),
+    ('p_contraction',                  'explicit', 0.0, 1.0, 0.0, 1.0, False),
+    ('TCD4_death_rate',                'centered', 1.0, 0.0, None, False),
+    ('TCD4_moveProb',                  'centered', 1.0, 0.0, 1.0, False),
 
-    # --- CD4 T cell kinetics ---
-    ('cd4_commitment_delay',           'centered', 0.5,  0.0,  None, False),
-    ('TCD4_Treg_frac',                 'centered', 0.5,  0.0,  1.0,  False),
-    ('k_TCD4_div',                     'centered', 0.5,  0.0,  None, False),
+    # --- Macrophages ---
+    ('Mac_moveProb',                   'centered', 1.0, 0.0, 1.0, False),
 
-    # current = 2.55e-7, explore one log fold up
-    ('TCD4_k_Th_diff_Treg',            'shifted',  2.5e-6, 1.0, 0.0, None, False),
+    ('k_Mac_M1_pol',                   'centered', 1.0, 0.0, None, False),
+    ('k_Mac_M2_pol',                   'centered', 1.0, 0.0, None, False),
+    ('k_M1_phago',                     'centered', 1.0, 0.0, None, False),
 
-    # current = 1.9e11, explore one log fold up
-    ('EC50_Arg1_Treg',                 'shifted',  2e12, 1.0, 0.0, None, False),
+    # --- MDSC ---
+    ('MDSC_moveProb',                 'centered', 1.0, 0.0, 1.0, False),
 
-    ('TCD4_div_Interval',              'centered', 0.5,  0.0,  None, False),
-    ('k_Arg1_Treg_div',                'centered', 0.5,  0.0,  None, False),
+    # --- Recruitment ---
+    ('k_TCD8_rec',                     'centered', 1.0, 0.0, None, False),
+    ('k_TCD4_rec',                     'centered', 1.0, 0.0, None, False),
+    ('k_MDSC_rec_base',                'centered', 1.0, 0.0, None, False),
+    ('k_MDSC_rec_max',                 'centered', 1.0, 0.0, None, False),
+    ('k_Mac_rec',                      'centered', 1.0, 0.0, None, False),
 
-    # --- Macrophage polarization / phagocytosis ---
-    ('Mac_moveProb',                   'centered', 0.5,  0.0,  1.0,  False),
+    ('M1_M2_rec_ratio',                'centered', 0.5, 0.0, 1.0, False),
 
-    # current = 3.215e-7, explore one log fold up
-    ('k_Mac_M1_pol',                   'shifted',  3e-6, 1.0, 0.0, None, False),
+    # --- PD1 / PDL1 ---
+    ('PDL1_baseline_mean',             'centered', 0.5, 0.0, 1.0, False),
+    ('PDL1_IFNg_max',                  'centered', 0.5, 0.0, 1.0, False),
 
-    # current = 2.894e-6, explore one log fold up
-    ('k_Mac_M2_pol',                   'shifted',  3e-5, 1.0, 0.0, None, False),
+    ('k_PDL1_upregulation',            'centered', 1.0, 0.0, None, False),
+    ('k_PD1_upregulation',             'centered', 1.0, 0.0, None, False),
+    ('k_PD1_decay',                    'centered', 1.0, 0.0, None, False),
 
-    ('EC50_TGFb_M2',                   'shifted',  10 * P.EC50_TGFb_M2, 1.0, 0.0, None, False),
-    ('EC50_IL10_M2',                   'shifted',  10 * P.EC50_IL10_M2, 1.0, 0.0, None, False),
-    ('EC50_IFNg_M1',                   'shifted',  10 * P.EC50_IFNg_M1, 1.0, 0.0, None, False),
-    ('EC50_IL12_M1',                   'shifted',  10 * P.EC50_IL12_M1, 1.0, 0.0, None, False),
+    ('k_PD1_signaling',                'centered', 1.0, 0.0, None, False),
+    ('k_exhaustion_rate',              'centered', 1.0, 0.0, None, False),
+    ('k_exhaustion_recovery',          'centered', 1.0, 0.0, None, False),
 
-    ('k_M1_phago',                     'centered', 0.5,  0.0,  None, False),
+    ('exhaustion_threshold_eff',       'centered', 0.5, 0.05, 0.95, False),
+    ('exhaustion_threshold_term',      'centered', 0.5, 0.05, 0.95, False),
 
-    ('IC50_IL10_phago',                'shifted',  10 * P.IC50_IL10_phago, 1.0, 0.0, None, False),
-
-    # --- Recruitment rates ---
-    ('k_TCD8_rec',                     'shifted',  2.5e-6, 1.0, 0.0, None, False),
-    ('k_TCD4_rec',                     'shifted',  1.25e-6, 1.0, 0.0, None, False),
-    ('k_MDSC_rec_base',                'shifted',  2.4e-7, 1.0, 0.0, None, False),
-    ('k_MDSC_rec_max',                 'shifted',  1.4e-6, 1.0, 0.0, None, False),
-    ('k_Mac_rec',                      'shifted',  2.5e-6, 1.0, 0.0, None, False),
-
-    ('M1_M2_rec_ratio',                'centered', 0.3,  0.0,  1.0,  False),
-
-    # --- PD-1 / PD-L1 axis ---
-    ('PDL1_baseline_mean',             'centered', 0.5,  0.0,  1.0,  False),
-    ('PDL1_IFNg_max',                  'centered', 0.3,  0.0,  1.0,  False),
-    ('k_PDL1_upregulation',            'centered', 0.5,  0.0,  None, False),
-    ('k_PD1_upregulation',             'centered', 0.5,  0.0,  None, False),
-
-    # current = 2e-5
-    ('k_PD1_signaling',                'shifted',  2e-4, 1.0, 0.0, None, False),
-
-    # current = 1e-5
-    ('k_exhaustion_rate',              'shifted',  1e-4, 1.0, 0.0, None, False),
-
-    # current = 5e-7
-    ('k_exhaustion_recovery',          'shifted',  5e-6, 1.0, 0.0, None, False),
-
-    ('exhaustion_threshold_eff',       'centered', 0.3,  0.05, 0.95, False),
-    ('exhaustion_threshold_term',      'centered', 0.3,  0.05, 0.95, False),
-    ('how_exhausted',                  'centered', 1.0,  0.0,  1.0,  False),
+    ('how_exhausted',                  'explicit', 0.0, 1.0, 0.0, 1.0, False),
 ]
 
 def build_problem(param_specs=PARAM_SPECS):
@@ -269,50 +253,45 @@ def build_problem(param_specs=PARAM_SPECS):
 # ─────────────────────────────────────────────────────────────────────────────
 
 RAW_STAT_NAMES = [
-    'tumor_cell_count',
+    'cancer_fraction',
+    'm1_fraction',
+    'm2_fraction',
+    'cd8_effector_fraction',
     'cd8_exhausted_fraction',
-    'cd8_active_fraction',
-    'treg_fraction',
-    'm1_m2_ratio',
-    'mdsc_count',
-    'tumor_immune_ratio',
-    'pdl1_expression',
-    'tumor_elimination_step',
-    'tumor_extinct'
+    'cd8_naive_fraction',
+    'cd4_helper_fraction',
+    'cd4_treg_fraction',
+    'cd4_naive_fraction'
 ]
 
 SUMMARY_STAT_NAMES = [
 
-    # --- Tumor burden ---
-    'tumor_cell_count_mean',
-    'tumor_cell_count_sd',
+    'cancer_fraction_mean',
+    'cancer_fraction_sd',
 
-    # --- CD8 states ---
+    'm1_fraction_mean',
+    'm1_fraction_sd',
+
+    'm2_fraction_mean',
+    'm2_fraction_sd',
+
+    'cd8_effector_fraction_mean',
+    'cd8_effector_fraction_sd',
+
     'cd8_exhausted_fraction_mean',
     'cd8_exhausted_fraction_sd',
 
-    'cd8_active_fraction_mean',
-    'cd8_active_fraction_sd',
+    'cd8_naive_fraction_mean',
+    'cd8_naive_fraction_sd',
 
-    # --- CD4/Treg ---
-    'treg_fraction_mean',
-    'treg_fraction_sd',
+    'cd4_helper_fraction_mean',
+    'cd4_helper_fraction_sd',
 
-    # --- Macrophages ---
-    'm1_m2_ratio_mean',
-    'm1_m2_ratio_sd',
+    'cd4_treg_fraction_mean',
+    'cd4_treg_fraction_sd',
 
-    # --- MDSCs ---
-    'mdsc_count_mean',
-    'mdsc_count_sd',
-
-    # --- Tumor : immune balance ---
-    'tumor_immune_ratio_mean',
-    'tumor_immune_ratio_sd',
-
-    # --- PD-L1 ---
-    'pdl1_expression_mean',
-    'pdl1_expression_sd',
+    'cd4_naive_fraction_mean',
+    'cd4_naive_fraction_sd'
 ]
 
 
@@ -484,27 +463,27 @@ def _compute_summary_stats(model) -> dict:
 
     if total_population == 0:
         return {
-            'Cancer_cells':   0.0,
-            'M1_like':        0.0,
-            'M2_like':        0.0,
-            'CD8_Effector':   0.0,
-            'CD8_Exhausted':  0.0,
-            'CD8_Naive':      0.0,
-            'CD4_Helper':     0.0,
-            'CD4_Treg':       0.0,
-            'CD4_Naive':      0.0,
+            'cancer_fraction': 0.0,
+            'm1_fraction': 0.0,
+            'm2_fraction': 0.0,
+            'cd8_effector_fraction': 0.0,
+            'cd8_exhausted_fraction': 0.0,
+            'cd8_naive_fraction': 0.0,
+            'cd4_helper_fraction': 0.0,
+            'cd4_treg_fraction': 0.0,
+            'cd4_naive_fraction': 0.0,
         }
 
     return {
-        'Cancer_cells':  n_cancer / total_population,
-        'M1_like':       n_m1 / total_population,
-        'M2_like':       n_m2 / total_population,
-        'CD8_Effector':  n_cd8_effector / total_population,
-        'CD8_Exhausted': n_cd8_exhausted / total_population,
-        'CD8_Naive':     n_cd8_naive / total_population,
-        'CD4_Helper':    n_cd4_helper / total_population,
-        'CD4_Treg':      n_cd4_treg / total_population,
-        'CD4_Naive':     n_cd4_naive / total_population,
+        'cancer_fraction': n_cancer / total_population,
+        'm1_fraction': n_m1 / total_population,
+        'm2_fraction': n_m2 / total_population,
+        'cd8_effector_fraction': n_cd8_effector / total_population,
+        'cd8_exhausted_fraction': n_cd8_exhausted / total_population,
+        'cd8_naive_fraction': n_cd8_naive / total_population,
+        'cd4_helper_fraction': n_cd4_helper / total_population,
+        'cd4_treg_fraction': n_cd4_treg / total_population,
+        'cd4_naive_fraction': n_cd4_naive / total_population,
     }
 
 
@@ -798,11 +777,7 @@ def run_sobol_analysis(param_values: np.ndarray,
             'ST':  Si['ST'],
             'ST_conf': Si['ST_conf'],
         })
-        df["relative_ST_conf"] = (
-                df["ST_conf"] /
-                np.maximum(df["ST"], 1e-12)
-            )
-        df["top_parameter"] = ((df["relative_ST_conf"] < 0.25) & (df["ST"] > 0.05))
+        df["relative_ST_conf"] = (df["ST_conf"] / np.maximum(df["ST"], 1e-12))
         df.to_csv(f"{output_dir}/{stat_name}_sobol.csv", index=False)
         print(f"\n{stat_name} — top 5 parameters by total-order index:")
         print(df.nlargest(5, 'ST')[['parameter', 'S1', 'ST']].to_string(index=False))
@@ -810,17 +785,29 @@ def run_sobol_analysis(param_values: np.ndarray,
     return all_indices
 
 
-def plot_sensitivity_heatmap(all_indices: dict,
-                             output_dir: str = 'sensitivity_results',
-                             index_type: str = 'ST'):
+def plot_sensitivity_heatmap(
+        all_indices,
+        output_dir='sensitivity_results',
+        index_type='ST',
+        stat_type=None):
     """
     Heatmap of Sobol total-order indices across all summary statistics.
     Rows = parameters, Columns = summary statistics.
-    This is the key diagnostic plot for identifiability.
+    This provides an overview to how strongly each parameter influences each output.
     """
     n_params = problem['num_vars']
-    n_stats  = len(SUMMARY_STAT_NAMES)
     stats_with_data = [s for s in SUMMARY_STAT_NAMES if s in all_indices]
+    if stat_type == "mean":
+        stats_with_data = [
+            s for s in stats_with_data
+            if s.endswith("_mean")
+        ]
+
+    elif stat_type == "sd":
+        stats_with_data = [
+            s for s in stats_with_data
+            if s.endswith("_sd")
+        ]
 
     matrix = np.zeros((n_params, len(stats_with_data)))
     for j, stat in enumerate(stats_with_data):
@@ -848,21 +835,39 @@ def plot_sensitivity_heatmap(all_indices: dict,
                         fontsize=6, color='black' if val < 0.6 else 'white')
 
     plt.tight_layout()
-    plt.savefig(f"{output_dir}/sensitivity_heatmap_{index_type}.pdf",
-                bbox_inches='tight', dpi=150)
-    plt.savefig(f"{output_dir}/sensitivity_heatmap_{index_type}.png",
-                bbox_inches='tight', dpi=150)
+    suffix = f"_{stat_type}" if stat_type else ""
+
+    plt.savefig(
+        f"{output_dir}/sensitivity_heatmap_{index_type}{suffix}.pdf",
+        bbox_inches='tight',
+        dpi=150
+    )
+
+    plt.savefig(
+        f"{output_dir}/sensitivity_heatmap_{index_type}{suffix}.png",
+        bbox_inches='tight',
+        dpi=150
+    )
     plt.close()
     print(f"\nHeatmap saved to {output_dir}/sensitivity_heatmap_{index_type}.pdf")
 
 
-def plot_ranking_per_stat(all_indices: dict,
-                          output_dir: str = 'sensitivity_results',
-                          top_n: int = 10):
+def plot_ranking_per_stat(
+        all_indices,
+        output_dir='sensitivity_results',
+        top_n=10,
+        stat_type=None):
     """
     Bar chart of top-N most influential parameters for each summary statistic.
     """
     stats_with_data = [s for s in SUMMARY_STAT_NAMES if s in all_indices]
+
+    if stat_type == "mean":
+        stats_with_data = [s for s in stats_with_data if s.endswith("_mean")]
+
+    elif stat_type == "sd":
+        stats_with_data = [s for s in stats_with_data if s.endswith("_sd")]
+
     n_stats = len(stats_with_data)
     cols = min(3, n_stats)
     rows = (n_stats + cols - 1) // cols
@@ -870,8 +875,9 @@ def plot_ranking_per_stat(all_indices: dict,
     fig, axes = plt.subplots(rows, cols,
                              figsize=(cols * 5, rows * 4),
                              squeeze=False)
-    fig.suptitle('Top Parameters by Total-Order Sobol Index', fontsize=13, y=1.01)
+    label = stat_type.upper()
 
+    fig.suptitle(f'Top Parameters by Total-Order Sobol Index ({label})', fontsize=13, y=1.01)
     for idx, stat in enumerate(stats_with_data):
         ax = axes[idx // cols][idx % cols]
         Si = all_indices[stat]
@@ -896,51 +902,75 @@ def plot_ranking_per_stat(all_indices: dict,
         axes[idx // cols][idx % cols].set_visible(False)
 
     plt.tight_layout()
-    plt.savefig(f"{output_dir}/parameter_rankings.pdf",
-                bbox_inches='tight', dpi=150)
+    plt.savefig(f"{output_dir}/parameter_rankings_{stat_type}.pdf", bbox_inches='tight', dpi=150)
     plt.close()
     print(f"Rankings saved to {output_dir}/parameter_rankings.pdf")
 
 
-def summarize_identifiability(all_indices: dict,
-                              output_dir: str = 'sensitivity_results',
-                              ST_threshold: float = 0.05):
-    """
-    Produce a summary table of which parameters are influential on
-    at least one output (identifiable candidates) vs. non-influential
-    (candidates for fixing at nominal values during fitting).
-    """
-    records = []
-    for param in problem['names']:
-        max_ST = 0.0
-        influential_outputs = []
+def export_parameter_summary(all_indices,
+                             output_dir='sensitivity_results',
+                             ST_threshold=0.05):
+
+    rows = []
+
+    for i, param in enumerate(problem['names']):
+
+        mean_st_values = []
+        influential_mean_outputs = []
+        influential_sd_outputs = []
+
         for stat, Si in all_indices.items():
-            param_idx = problem['names'].index(param)
-            st = Si['ST'][param_idx]
-            if st > ST_threshold:
-                influential_outputs.append(stat)
-            max_ST = max(max_ST, st)
-        records.append({
+
+            st = Si['ST'][i]
+
+            if np.isnan(st):
+                continue
+
+            if stat.endswith('_mean'):
+
+                mean_st_values.append(st)
+
+                if st > ST_threshold:
+                    influential_mean_outputs.append(stat)
+
+            elif stat.endswith('_sd'):
+
+                if st > ST_threshold:
+                    influential_sd_outputs.append(stat)
+
+        if len(mean_st_values) == 0:
+            continue
+
+        rows.append({
             'parameter': param,
-            'max_ST': round(max_ST, 4),
-            'n_outputs_influenced': len(influential_outputs),
-            'influential_outputs': ', '.join(influential_outputs),
-            'recommendation': 'FIT' if max_ST > ST_threshold else 'FIX at nominal'
+
+            'max_ST': np.max(mean_st_values),
+            'mean_ST': np.mean(mean_st_values),
+            'median_ST': np.median(mean_st_values),
+            'min_ST': np.min(mean_st_values),
+
+            'n_mean_outputs_above_threshold':
+                len(influential_mean_outputs),
+            'mean_outputs':
+                '; '.join(influential_mean_outputs),
+
+            'n_sd_outputs_above_threshold':
+                len(influential_sd_outputs),
+            'sd_outputs':
+                '; '.join(influential_sd_outputs)
         })
 
-    df = pd.DataFrame(records).sort_values('max_ST', ascending=False)
-    df.to_csv(f"{output_dir}/identifiability_summary.csv", index=False)
+    df = pd.DataFrame(rows)
 
-    print("\n" + "="*60)
-    print("IDENTIFIABILITY SUMMARY")
-    print("="*60)
-    fit_params = df[df['recommendation'] == 'FIT']
-    fix_params = df[df['recommendation'] == 'FIX at nominal']
-    print(f"\nParameters to FIT ({len(fit_params)}):")
-    print(fit_params[['parameter', 'max_ST', 'n_outputs_influenced']].to_string(index=False))
-    print(f"\nParameters to FIX ({len(fix_params)}):")
-    print(fix_params[['parameter', 'max_ST']].to_string(index=False))
-    print(f"\nFull summary saved to {output_dir}/identifiability_summary.csv")
+    df = df.sort_values(
+        ['n_mean_outputs_above_threshold', 'max_ST'],
+        ascending=[False, False]
+    )
+
+    outfile = f"{output_dir}/parameter_summary.csv"
+    df.to_csv(outfile, index=False)
+
+    print(f"Saved parameter summary to {outfile}")
 
     return df
 
@@ -1074,7 +1104,7 @@ if __name__ == '__main__':
 
     # ---- Phase: analyze ----
     # Run once, after merge. Loads the merged checkpoint and produces the
-    # Sobol indices, heatmaps, rankings, and identifiability summary.
+    # Sobol indices, heatmaps, rankings, and parameter influence summaries.
     elif args.mode == 'analyze':
         if not (os.path.exists(samples_file) and os.path.exists(checkpoint)):
             raise FileNotFoundError(
@@ -1084,10 +1114,11 @@ if __name__ == '__main__':
         param_values = np.load(samples_file)
         Y = np.load(checkpoint)
         all_indices = run_sobol_analysis(param_values, Y, output_dir=args.output_dir)
-        plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='ST')
-        plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='S1')
-        plot_ranking_per_stat(all_indices, output_dir=args.output_dir, top_n=10)
-        summarize_identifiability(all_indices, output_dir=args.output_dir)
+        for stat_type in ["mean", "sd"]:
+            plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='ST', stat_type=stat_type)
+            plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='S1',stat_type=stat_type)
+            plot_ranking_per_stat(all_indices, output_dir=args.output_dir, top_n=10, stat_type=stat_type)
+        export_parameter_summary(all_indices, output_dir=args.output_dir, ST_threshold=0.05)
         save_run_database(param_values, Y, output_dir=args.output_dir)
         print(f"\nAll outputs written to: {args.output_dir}/")
 
@@ -1116,9 +1147,10 @@ if __name__ == '__main__':
                                  checkpoint_file=checkpoint)
 
         all_indices = run_sobol_analysis(param_values, Y, output_dir=args.output_dir)
-        plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='ST')
-        plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='S1')
-        plot_ranking_per_stat(all_indices, output_dir=args.output_dir, top_n=10)
-        summarize_identifiability(all_indices, output_dir=args.output_dir)
+        for stat_type in ["mean", "sd"]:
+            plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='ST', stat_type=stat_type)
+            plot_sensitivity_heatmap(all_indices, output_dir=args.output_dir, index_type='S1',stat_type=stat_type)
+            plot_ranking_per_stat(all_indices, output_dir=args.output_dir, top_n=10, stat_type=stat_type)
+        export_parameter_summary(all_indices, output_dir=args.output_dir, ST_threshold=0.05)
         save_run_database(param_values, Y, output_dir=args.output_dir)
         print(f"\nAll outputs written to: {args.output_dir}/")
