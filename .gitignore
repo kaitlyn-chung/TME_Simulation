@@ -1,16 +1,14 @@
 # Git Ignore
 
-
 # macOS
 .DS_Store
 *.zip
-
 
 # outputs
 **/simulation_output/
 **/sensitivity_results*/
 **/logs*/
-**/sensitivity_analysis_results/
+**/sensitivity_analysis_archive/
 
 # jupyter notebook checkpoints
 **/.ipynb_checkpoints/
@@ -27,3 +25,10 @@
 
 
 **/scenarios.py
+
+# ABM Validation files
+**/*_run
+**/SCM_results
+**/Bassez_counts
+**/*.ipynb
+**/*.out
