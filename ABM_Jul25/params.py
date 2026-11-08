@@ -154,7 +154,7 @@ MDSC_moveProb = 0.1 # migration probability at each timestep
 
 # Macrophage parameters
 #Mac_lifespanMean = 4.32e+6 # sec = 50 days
-Mac_lifespanMean = 4.32e+5 # sec = 50 days
+Mac_lifespanMean = 4.32e+6 # sec = 50 days
 Mac_lifespanSD = 8.64e+4 # sec = 1 day
 Mac_moveProb = 0.5 # migration probability at each timestep
 k_Mac_M1_pol = 3.215e-7 # /sec = 0.02/day, M2 to M1 polarization rate
