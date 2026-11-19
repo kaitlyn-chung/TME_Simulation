@@ -175,7 +175,7 @@ k_MDSC_rec_base = 2.43e-8 # molecules/sec = 0.0021/day
 k_MDSC_rec_max = 1.4e-7 # molecules/sec = 0.012/day max recruitment rate at saturated CCL2
 EC50_CCL2_MDSC_rec = 5e-10 * 1.25e-10 * Avogadro_No # molecules = 5e-10 M
 k_Mac_rec = 2.46e-7 # molecules/sec = 1.7e5 cell/mL/day
-M1_M2_rec_ratio = 1.3/(1+1.3) # 1.3:1 M1:M2 recruitment ratio
+M1_M2_rec_ratio = 1.3 # 1.3:1 M1:M2 recruitment ratio (model.py converts to P(M1) = r/(1+r))
 
 # --- PD-L1 (Tumor cells) ---
 PDL1_baseline_mean      = 0.15        # normalized surface expression [0–1]
@@ -198,4 +198,4 @@ k_exhaustion_recovery   = 5e-7        # 1/sec, partial recovery rate
 exhaustion_threshold_eff = 0.3
 exhaustion_threshold_term = 0.70
 
-how_exhausted = 0
+how_exhausted = 0.8
