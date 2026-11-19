@@ -327,11 +327,11 @@ class ABM_Model(Model):
                     self.schedule.add(new_cd4)
         
                 elif u < threshold_mac:
-                    # recruit Macrophage (based on 1.3:1 M1:M2 recruitment ratio)
-                    if random.random() < P.M1_M2_rec_ratio:
-                        new_mac = Macrophage(self._next_id(), self, subtype=MacSubtype.M2)
-                    else:
+                    # recruit Macrophage: M1:M2 = M1_M2_rec_ratio : 1, so P(M1) = r / (1 + r)
+                    if random.random() < P.M1_M2_rec_ratio / (1.0 + P.M1_M2_rec_ratio):
                         new_mac = Macrophage(self._next_id(), self, subtype=MacSubtype.M1)
+                    else:
+                        new_mac = Macrophage(self._next_id(), self, subtype=MacSubtype.M2)
                     self.grid.place_agent(new_mac, (x, y))
                     self.schedule.add(new_mac)
         
@@ -512,9 +512,13 @@ class ABM_Model(Model):
             self.grid.place_agent(mdsc, pos)
             self.schedule.add(mdsc)
     
-        # --- e) Macrophages (M1 by default) ---
+        # --- e) Macrophages: same M1:M2 ratio as recruitment, P(M1) = r / (1 + r) ---
         for _ in range(min(initial_macrophages, len(all_positions))):
             pos = all_positions.pop()
-            mac = Macrophage(self._next_id(), self, subtype=MacSubtype.M1)
+            if random.random() < P.M1_M2_rec_ratio / (1.0 + P.M1_M2_rec_ratio):
+                subtype = MacSubtype.M1
+            else:
+                subtype = MacSubtype.M2
+            mac = Macrophage(self._next_id(), self, subtype=subtype)
             self.grid.place_agent(mac, pos)
             self.schedule.add(mac)
