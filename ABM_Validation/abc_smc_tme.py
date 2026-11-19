@@ -35,12 +35,13 @@ from ABM_Jul25.scenarios import DEFAULT_SCENARIOS
 DATA = "/athena/cayuga_0014/scratch/kch4018/abm-files/ABM_Validation/Bassez_counts/observed_fractions.csv"
 OUT = "/athena/cayuga_0014/scratch/kch4018/abm-files/ABM_Validation/SCM_results"
 POP_SIZE = 500                # particles per generation
-MAX_GENERATIONS = 8
+MAX_GENERATIONS = 5
 # MIN_EPSILON = 0.02
 ESS_THRESHOLD = POP_SIZE / 2  # resample if effective sample size falls below this
 MIN_ACCEPTANCE = 0.01         # stop if acceptance rate falls below this
-MAX_SIMS = 20000              # hard cap on ABM runs per patient
-N_PPC = 64                    # fresh simulations for the posterior predictive check
+MAX_SIMS = 50000              # hard cap on ABM runs per patient
+N_PPC = 256                    # fresh simulations for the posterior predictive check
+N_PRIOR_PC = 200               # simulations from the prior, to flag unreachable observed values before ABC
 N_PROCS = int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count()))
 
 KEYS = ["Cancer_cells", "M1_like", "M2_like", "CD8_Effector", "CD8_Exhausted",
@@ -50,21 +51,27 @@ KEYS = ["Cancer_cells", "M1_like", "M2_like", "CD8_Effector", "CD8_Exhausted",
 # Rate constants are sampled as log10(value) because they span decades.
 # Initial-count bounds sum to 850 so they fit the 30x30 grid.
 
-# Using the top 10 parameters from the sensitivity analysis,
+# Using 13 parameters from the sensitivity analysis where median_ST > 0.05
+
 PRIOR = {
-    "N_tumor_init": (100, 140), "N_CD8_init": (10, 40), "N_CD4_init": (40, 70),
-    "N_Mac_init": (25,45), "N_MDSC_init": (10, 30),
+    "N_tumor_init": (100, 140), 
+    "N_CD8_init": (10, 40), 
+    "N_CD4_init": (40, 70),
+    "N_Mac_init": (25,45), 
+    "N_MDSC_init": (10, 30),
     "log10_CancerCell_progGrowthRate": (-7, -6),
     "log10_CancerCell_stemGrowthRate": (-7, -6),
     "how_exhausted": (0.6, 1),
     "log10_k_TCD8_rec": (-8, -6),
     "log10_k_TCD4_rec": (-8, -6),
-    "log10_k_TCR_activation": (-6, -2),
-    "M1_M2_rec_ratio": (0.25, 4),
-    "TCD8_moveProb": (0, 1),
+    "log10_k_TCR_activation": (-6, -4),
+    "M1_M2_rec_ratio": (1, 2),   # M1:M2 recruitment ratio (literature 1.3:1)
+    "TCD8_moveProb": (0.5, 1),
     "log10_cd8_commitment_delay": (3, 7),
-    "log10_k_Mac_rec": (-8, -6),
-    "PDL1_baseline_mean": (0, 1)
+    "log10_k_Mac_rec": (-10, -8),
+    "PDL1_baseline_mean": (0, 1),
+    "log10_k_PDL1_upregulation": (-8, -6),
+    "log10_TCD4_death_rate": (-6, -5), 
 }
 
 prior = pyabc.Distribution(**{k: pyabc.RV("uniform", lo, hi - lo) for k, (lo, hi) in PRIOR.items()})
@@ -96,19 +103,21 @@ def get_final_fractions(model):
         subtype=A.MacSubtype.M2
     )
 
+    # Naive = differentiation state (PD1NEG also includes activated, low-exhaustion cells).
+    # Naive cells never accumulate exhaustion, so naive and terminal never overlap.
     n_cd8_naive = model.count_cell_type(
         A.CD8TCell,
-        exhaustion_state=A.CD8ExhaustionState.CD8TPD1NEG
-    )
-
-    n_cd8_effector = model.count_cell_type(
-        A.CD8TCell,
-        exhaustion_state=A.CD8ExhaustionState.CD8TEFFECTOR
+        diff_state=A.CD8DiffState.CD8TNAIVE
     )
 
     n_cd8_exhausted = model.count_cell_type(
         A.CD8TCell,
         exhaustion_state=A.CD8ExhaustionState.CD8TTERMINAL
+    )
+
+    n_cd8_effector = max(
+        0,
+        model.count_agents(A.CD8TCell) - n_cd8_naive - n_cd8_exhausted
     )
 
     n_cd4_helper = model.count_cell_type(
@@ -230,8 +239,6 @@ def model(par):
             t0 = time.time()
             model.step()
             dt = time.time() - t0
-            if step % 50 == 0:
-                print(f"step={step:3d}  time={dt:8.3f}s", flush=True)
             if not model.running:
                 break
 
@@ -260,11 +267,42 @@ def distance(x, x_0):
     return float(np.sqrt(0.5 * np.sum((np.sqrt(p) - np.sqrt(q)) ** 2)))
 
 
+def weighted_median(x, w):
+    """Value at which the cumulative normalised weight first reaches 0.5."""
+    order = np.argsort(x)
+    cum = np.cumsum(w[order]) / np.sum(w)
+    return x[order][np.searchsorted(cum, 0.5)]
+
+
+def prior_predictive_check(obs, d):
+    """Simulate from the prior; flag observed values outside the range the model can produce."""
+    out = os.path.join(d, "prior_predictive_summary.csv")
+    if os.path.exists(out):                # already done on an earlier (resumed) run
+        return
+    draws = [dict(prior.rvs()) for _ in range(N_PRIOR_PC)]
+    with Pool(N_PROCS) as pool:
+        sims = pd.DataFrame(pool.map(model, draws))
+    sims = sims[(sims >= 0).all(axis=1)]
+    sims.to_csv(os.path.join(d, "prior_predictive_simulations.csv"), index=False)
+    summary = pd.DataFrame({"observed": pd.Series(obs), "min": sims.min(),
+                            "q05": sims.quantile(0.05), "median": sims.median(),
+                            "q95": sims.quantile(0.95), "max": sims.max()})
+    summary["reachable"] = (summary.observed >= summary["min"]) & (summary.observed <= summary["max"])
+    summary["inside_90"] = (summary.observed >= summary.q05) & (summary.observed <= summary.q95)
+    summary.to_csv(out)
+    print("Prior predictive check:\n", summary, flush=True)
+    bad = summary.index[~summary.reachable].tolist()
+    if bad:
+        print(f"WARNING: observed values outside all {len(sims)} prior simulations: {bad}. "
+              "PPC coverage cannot reach these without model/prior changes.", flush=True)
+
+
 # ---------------------------------------------------------------- one patient
 def fit_patient(pid, obs):
     d = os.path.join(OUT, pid)
     os.makedirs(d, exist_ok=True)
     db = os.path.join(d, "abc.db")
+    prior_predictive_check(obs, d)
 
     abc = pyabc.ABCSMC(
             model,
@@ -275,7 +313,11 @@ def fit_patient(pid, obs):
                 max_population_size=1000,
                 min_population_size=POP_SIZE
             ),
-            eps=pyabc.QuantileEpsilon(alpha=0.8),
+            # LocalTransition: per-particle kernel from its nearest neighbours instead of one
+            # global Gaussian -> proposals track the posterior shape, which limits weight collapse
+            transitions=pyabc.LocalTransition(k_fraction=0.25),
+            # median-based schedule: shrinks epsilon faster, so weights do less corrective work
+            eps=pyabc.QuantileEpsilon(alpha=0.5),
             sampler=pyabc.sampler.MulticoreEvalParallelSampler(
                 n_procs=N_PROCS
             )
@@ -292,7 +334,8 @@ def fit_patient(pid, obs):
     # --- convergence diagnostics (pyABC plots + a table)
     pops = h.get_all_populations()
     pops = pops[pops.t >= 0].copy()
-    pops["acceptance_rate"] = POP_SIZE / pops["samples"]
+    # population size is adaptive (500-1000), so use the actual accepted count per generation
+    pops["acceptance_rate"] = pops["particles"] / pops["samples"]
     pops.to_csv(os.path.join(d, "generations.csv"), index=False)
     for name, fn in [("epsilon", plot_epsilons), ("ess", plot_effective_sample_sizes),
                      ("acceptance", plot_acceptance_rates_trajectory)]:
@@ -348,7 +391,7 @@ def fit_patient(pid, obs):
             "parameter": param,
             "MAP": map_est,
             "mean": np.average(df[param], weights=w),
-            "median": np.quantile(df[param], 0.5)
+            "median": weighted_median(df[param].to_numpy(), w)
         })
 
         plt.axvline(
