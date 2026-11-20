@@ -30,12 +30,12 @@ conda activate abm
 
 export PYTHONPATH=/athena/cayuga_0014/scratch/kch4018/abm-files/TME_Simulation
 
-# echo "Merging chunks..."
-# python -u -m ABM_Jul25.sensitivity_analysis \
-#     --mode merge \
-#     --N "${N}" \
-#     --output-dir "${OUTPUT_DIR}" \
-#     --n-chunks "${N_CHUNKS}"
+echo "Merging chunks..."
+python -u -m ABM_Jul25.sensitivity_analysis \
+    --mode merge \
+    --N "${N}" \
+    --output-dir "${OUTPUT_DIR}" \
+    --n-chunks "${N_CHUNKS}"
 
 echo "Running Sobol analysis and generating plots..."
 python -u -m ABM_Jul25.sensitivity_analysis \
