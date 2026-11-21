@@ -33,9 +33,10 @@ from ABM_Jul25.scenarios import DEFAULT_SCENARIOS
 
 # ---------------------------------------------------------------- settings
 DATA = "/athena/cayuga_0014/scratch/kch4018/abm-files/ABM_Validation/Bassez_counts/observed_fractions.csv"
-OUT = "/athena/cayuga_0014/scratch/kch4018/abm-files/ABM_Validation/SCM_results"
+OUT = "/athena/cayuga_0014/scratch/kch4018/abm-files/ABM_Validation/SCM_results_exhaustion"   # new dir: prior changed, don't resume SCM_results/*/abc.db
+PRIOR_CHECK_ONLY = os.environ.get("PRIOR_CHECK_ONLY") == "1"   # 1 -> run only the prior predictive check, skip ABC
 POP_SIZE = 500                # particles per generation
-MAX_GENERATIONS = 5
+MAX_GENERATIONS = 8
 # MIN_EPSILON = 0.02
 ESS_THRESHOLD = POP_SIZE / 2  # resample if effective sample size falls below this
 MIN_ACCEPTANCE = 0.01         # stop if acceptance rate falls below this
@@ -62,7 +63,7 @@ PRIOR = {
     "log10_CancerCell_progGrowthRate": (-7, -6),
     "log10_CancerCell_stemGrowthRate": (-7, -6),
     "how_exhausted": (0.6, 1),
-    "log10_k_TCD8_rec": (-8, -6),
+    "log10_k_TCD8_rec": (-8, -5),  
     "log10_k_TCD4_rec": (-8, -6),
     "log10_k_TCR_activation": (-6, -4),
     "M1_M2_rec_ratio": (1, 2),   # M1:M2 recruitment ratio (literature 1.3:1)
@@ -71,7 +72,10 @@ PRIOR = {
     "log10_k_Mac_rec": (-10, -8),
     "PDL1_baseline_mean": (0, 1),
     "log10_k_PDL1_upregulation": (-8, -6),
-    "log10_TCD4_death_rate": (-6, -5), 
+    "log10_TCD4_death_rate": (-6, -5),
+    "exhaustion_threshold_eff": (0.1, 0.35),   # default 0.3; boundary for being counted exhausted; max < term min
+    "exhaustion_threshold_term": (0.4, 0.8),   # default 0.70; proliferation arrest; must stay > exhaustion_threshold_eff
+    "log10_k_PD1_signaling": (-6, -4),         # default 2e-5
 }
 
 prior = pyabc.Distribution(**{k: pyabc.RV("uniform", lo, hi - lo) for k, (lo, hi) in PRIOR.items()})
@@ -110,9 +114,15 @@ def get_final_fractions(model):
         diff_state=A.CD8DiffState.CD8TNAIVE
     )
 
-    n_cd8_exhausted = model.count_cell_type(
-        A.CD8TCell,
-        exhaustion_state=A.CD8ExhaustionState.CD8TTERMINAL
+    # Exhausted = intermediate (PD-1+, still dividing) + terminal, to match the data's
+    # CD8_EX + CD8_EX_Proliferating. Effector = remaining non-naive (CD8_EM/EMRA).
+    # Counted by exhaustion_level, not the CD8TEFFECTOR enum: non-naive cells are created in
+    # CD8TEFFECTOR with level 0 (and can_exhaust=False cells never leave it).
+    n_cd8_exhausted = sum(
+        1 for a in model.schedule.agents
+        if isinstance(a, A.CD8TCell) and getattr(a, "alive", True)
+        and a.diff_state != A.CD8DiffState.CD8TNAIVE
+        and a.exhaustion_level > P.exhaustion_threshold_eff
     )
 
     n_cd8_effector = max(
@@ -303,6 +313,8 @@ def fit_patient(pid, obs):
     os.makedirs(d, exist_ok=True)
     db = os.path.join(d, "abc.db")
     prior_predictive_check(obs, d)
+    if PRIOR_CHECK_ONLY:
+        return
 
     abc = pyabc.ABCSMC(
             model,
